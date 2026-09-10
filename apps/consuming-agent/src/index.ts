@@ -27,6 +27,20 @@ export type {
   ValidatedChallenge,
 } from "./challenge";
 export {
+  DEFAULT_MAX_PER_REQUEST_TINYBARS,
+  DEFAULT_MAX_TOTAL_BUDGET_TINYBARS,
+  DEFAULT_NETWORK,
+  ENV_MAX_PER_REQUEST,
+  ENV_MAX_TOTAL_BUDGET,
+  ENV_NETWORK,
+  ENV_PAYER_ACCOUNT_ID,
+  MAX_SUPPORTED_PER_REQUEST_TINYBARS,
+  MAX_SUPPORTED_TOTAL_BUDGET_TINYBARS,
+  SafetyConfigError,
+  loadConfig,
+} from "./config";
+export type { EnvLike, LoadConfigOptions, SafetyConfig, SafetyConfigErrorCode } from "./config";
+export {
   ALLOWED_ASSET,
   ALLOWED_CURRENCY,
   ALLOWED_NETWORK,
