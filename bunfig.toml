@@ -1,0 +1,9 @@
+# Bun runtime settings for the Strata402 monorepo
+
+[install]
+# Do not silently upgrade pinned dependency versions
+saveTextLockfile = false
+
+[test]
+# Default test root; overridable per workspace
+root = "./tests"

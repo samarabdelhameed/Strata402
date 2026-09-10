@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.cjs
+
+# Build output
+dist/
+build/
+out/
+coverage/
+
+# Environment files — never commit real secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+bun-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Deploy platforms
+.vercel/
+.netlify/
+
+# Compiled Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/

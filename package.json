@@ -1,0 +1,25 @@
+{
+  "name": "strata402",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous DeFi Intelligence on Hedera — x402-powered AI DeFi strategy service for autonomous agents on Hedera",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "validate": "bun run scripts/validate-workspaces.mjs",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "dev": "echo \"Dev orchestration arrives in Phase 3+.\""
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "bun": ">=1.1.0",
+    "node": ">=20.0.0"
+  }
+}
