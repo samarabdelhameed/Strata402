@@ -13,6 +13,7 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "preflight:c0": "bun apps/consuming-agent/src/cli-c0.ts",
+    "preflight:c0:payload": "bun apps/consuming-agent/src/cli-c0-payload.ts",
     "dev": "echo \"Dev orchestration arrives in Phase 3+.\""
   },
   "devDependencies": {
