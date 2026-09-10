@@ -1,6 +1,7 @@
 /**
  * Strata402 — shared x402 v2 types and constants.
  * Canonical transport headers per the x402 v2 spec.
+ * Network identifiers are CAIP-2 (e.g. "hedera:testnet").
  * Amounts are denominated in tinybars (asset: "0.0.0" = HBAR).
  */
 
@@ -10,10 +11,15 @@ export const HEADER_PAYMENT_REQUIRED = "PAYMENT-REQUIRED";
 export const HEADER_PAYMENT_SIGNATURE = "PAYMENT-SIGNATURE";
 export const HEADER_PAYMENT_RESPONSE = "PAYMENT-RESPONSE";
 
+export const DEFAULT_NETWORK = "hedera:testnet";
 export const DEFAULT_ASSET = "0.0.0";
-export const DEFAULT_NETWORK = "testnet";
 export const DEFAULT_PRICE_TINYBARS = 1_000_000;
-export const DEFAULT_RECIPIENT = "";
+export const DEFAULT_SERVICE_ACCOUNT = "0.0.1234";
+
+export const ENV_SERVICE_ACCOUNT = "HEDERA_SERVICE_ACCOUNT_ID";
+export const ENV_FACILITATOR_URL = "X402_FACILITATOR_URL";
+export const ENV_PRICE_TINYBARS = "X402_PRICE_TINYBARS";
+export const ENV_ASSET = "X402_ASSET";
 
 export interface ServiceBill {
   id: string;
@@ -27,6 +33,7 @@ export interface ServiceBill {
 export interface ServiceCatalog {
   network: string;
   currency: "HBAR";
+  payTo: string;
   services: ServiceBill[];
 }
 
@@ -34,14 +41,20 @@ export interface ServiceCatalogOverrides {
   network?: string;
   asset?: string;
   priceTinybars?: number;
+  payTo?: string;
+}
+
+export function serviceAccountFromEnv(): string {
+  return process.env[ENV_SERVICE_ACCOUNT] ?? DEFAULT_SERVICE_ACCOUNT;
 }
 
 export function buildServiceCatalog(
   overrides: ServiceCatalogOverrides = {},
 ): ServiceCatalog {
   const network = overrides.network ?? process.env.STRATA_NETWORK ?? DEFAULT_NETWORK;
-  const asset = overrides.asset ?? process.env.X402_ASSET ?? DEFAULT_ASSET;
-  const priceTinybars = overrides.priceTinybars ?? Number(process.env.X402_PRICE_TINYBARS ?? DEFAULT_PRICE_TINYBARS);
+  const asset = overrides.asset ?? process.env[ENV_ASSET] ?? DEFAULT_ASSET;
+  const priceTinybars = overrides.priceTinybars ?? Number(process.env[ENV_PRICE_TINYBARS] ?? DEFAULT_PRICE_TINYBARS);
+  const payTo = overrides.payTo ?? serviceAccountFromEnv();
 
   const base = {
     asset,
@@ -51,25 +64,12 @@ export function buildServiceCatalog(
   return {
     network,
     currency: "HBAR",
+    payTo,
     services: [
       {
-        id: "defi-risk-intel",
-        name: "DeFi Risk Intel",
-        description: "Risk-scored intelligence brief for a protocol or token position.",
-        priceTinybars,
-        ...base,
-      },
-      {
-        id: "portfolio-rebalance",
-        name: "Portfolio Rebalance Plan",
-        description: "Actionable rebalancing plan derived from on-chain positions.",
-        priceTinybars,
-        ...base,
-      },
-      {
-        id: "market-sentiment",
-        name: "Market Sentiment Digest",
-        description: "Aggregated sentiment and momentum snapshot for a market.",
+        id: "yield-risk",
+        name: "Yield-Risk Strategy",
+        description: "Risk-scored yield strategy assessment for a DeFi protocol position on Hedera.",
         priceTinybars,
         ...base,
       },

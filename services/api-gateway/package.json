@@ -7,13 +7,18 @@
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./x402": "./src/x402.ts"
   },
   "scripts": {
     "dev": "bun run src/index.ts"
   },
   "dependencies": {
     "@strata402/x402-sdk": "workspace:*",
+    "@x402/core": "2.25.0",
+    "@x402/express": "2.25.0",
+    "@x402/hedera": "2.25.0",
+    "@x402/paywall": "2.25.0",
     "express": "^5.2.1"
   },
   "devDependencies": {
