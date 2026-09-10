@@ -36,6 +36,17 @@ export type {
   PaymentRequirementsBinding,
   PaymentRequirementsErrorCode,
 } from "./payment-payload";
+export {
+  ENV_PAYER_PRIVATE_KEY,
+  PaymentConstructorError,
+  constructPaymentPayload,
+} from "./payment-constructor";
+export type {
+  ConstructPaymentPayloadOptions,
+  PaymentConstructorErrorCode,
+  PaymentPayloadConstructionInfo,
+  PayerKeyType,
+} from "./payment-constructor";
 export type { PaymentRequirements } from "@x402/core/types";
 export {
   DEFAULT_MAX_PER_REQUEST_TINYBARS,
