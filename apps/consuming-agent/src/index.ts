@@ -27,6 +27,17 @@ export type {
   ValidatedChallenge,
 } from "./challenge";
 export {
+  BINDING_DEFAULT_MAX_PER_REQUEST_TINYBARS,
+  BINDING_DEFAULT_MAX_TOTAL_BUDGET_TINYBARS,
+  PaymentRequirementsError,
+  bindPaymentRequirements,
+} from "./payment-payload";
+export type {
+  PaymentRequirementsBinding,
+  PaymentRequirementsErrorCode,
+} from "./payment-payload";
+export type { PaymentRequirements } from "@x402/core/types";
+export {
   DEFAULT_MAX_PER_REQUEST_TINYBARS,
   DEFAULT_MAX_TOTAL_BUDGET_TINYBARS,
   DEFAULT_NETWORK,
