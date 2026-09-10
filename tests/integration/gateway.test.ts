@@ -7,9 +7,16 @@ import {
   DEFAULT_NETWORK,
   DEFAULT_ASSET,
   DEFAULT_PRICE_TINYBARS,
-  DEFAULT_SERVICE_ACCOUNT,
 } from "@strata402/x402-sdk";
 import { buildX402Gateway } from "@strata402/api-gateway/x402";
+
+const expectedPayTo = process.env.HEDERA_SERVICE_ACCOUNT_ID;
+
+if (!expectedPayTo) {
+  throw new Error(
+    "HEDERA_SERVICE_ACCOUNT_ID is required for Gateway integration tests",
+  );
+}
 
 type Json = Record<string, any>;
 
@@ -52,7 +59,7 @@ test("GET /v1/services is free and lists the single MVP service with HBAR pico p
   const body = await readJson(res);
   expect(body.network).toBe(DEFAULT_NETWORK);
   expect(body.currency).toBe("HBAR");
-  expect(body.payTo).toBe(DEFAULT_SERVICE_ACCOUNT);
+  expect(body.payTo).toBe(expectedPayTo);
   expect(body.services).toHaveLength(1);
   const svc = body.services[0]!;
   expect(svc.id).toBe("yield-risk");
@@ -68,7 +75,7 @@ test("official x402 middleware is wired (not a hand-rolled stub)", () => {
   const accepts = gateway.routes["POST /v1/strategy/yield-risk"]!.accepts as any;
   expect(accepts.scheme).toBe("exact");
   expect(accepts.network).toBe(DEFAULT_NETWORK);
-  expect(accepts.payTo).toBe(DEFAULT_SERVICE_ACCOUNT);
+  expect(accepts.payTo).toBe(expectedPayTo);
   expect(accepts.price).toEqual({ asset: DEFAULT_ASSET, amount: String(DEFAULT_PRICE_TINYBARS) });
 });
 
@@ -88,6 +95,6 @@ test("paid endpoint issues a real x402 v2 challenge: 402 + PAYMENT-REQUIRED", as
   expect(accept.network).toBe(DEFAULT_NETWORK);
   expect(accept.asset).toBe(DEFAULT_ASSET);
   expect(accept.amount).toBe(String(DEFAULT_PRICE_TINYBARS));
-  expect(accept.payTo).toBe(DEFAULT_SERVICE_ACCOUNT);
+  expect(accept.payTo).toBe(expectedPayTo);
   expect(accept.extra.feePayer).toBeTruthy();
 });
