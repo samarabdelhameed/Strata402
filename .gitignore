@@ -36,3 +36,8 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# Design docs — local only, never pushed to GitHub
+doc/
+docs/
+/strata402-master-blueprint.docx
