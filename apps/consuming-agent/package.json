@@ -1,0 +1,17 @@
+{
+  "name": "@strata402/consuming-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Strata402 x402 v2 consuming agent — pays to consume the yield-risk strategy endpoint.",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@x402/core": "2.25.0",
+    "@x402/fetch": "2.25.0",
+    "@x402/hedera": "2.25.0",
+    "@hiero-ledger/sdk": "2.85.0"
+  }
+}
