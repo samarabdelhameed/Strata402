@@ -1,21 +1,21 @@
 import express from "express";
-import {
-  DEFAULT_ASSET,
-  DEFAULT_NETWORK,
-  HEADER_PAYMENT_REQUIRED,
-  buildServiceCatalog,
-} from "@strata402/x402-sdk";
+import { DEFAULT_NETWORK, buildServiceCatalog } from "@strata402/x402-sdk";
+import { buildX402Gateway, createPaymentMiddleware } from "./x402";
 
 export function buildApp(): express.Express {
   const app = express();
   app.use(express.json());
+
+  const gateway = buildX402Gateway();
+  app.use(createPaymentMiddleware(gateway));
 
   app.get("/health", (_req, res) => {
     res.json({
       status: "ok",
       service: "strata402-api-gateway",
       version: "0.1.0",
-      network: process.env.STRATA_NETWORK ?? DEFAULT_NETWORK,
+      network: DEFAULT_NETWORK,
+      x402Version: 2,
       timestamp: new Date().toISOString(),
     });
   });
@@ -24,23 +24,12 @@ export function buildApp(): express.Express {
     res.json(buildServiceCatalog());
   });
 
-  app.get("/v1/intel/:serviceId", (_req, res) => {
-    // STUB — Phase 2 only. The real x402 middleware (Phase 3) validates
-    // PAYMENT-SIGNATURE and issues PAYMENT-RESPONSE via @x402/express.
-    const paymentRequired = JSON.stringify({
-      schema: "x402-v2",
-      network: process.env.STRATA_NETWORK ?? DEFAULT_NETWORK,
-      required: {
-        to: process.env.X402_RECIPIENT ?? DEFAULT_ASSET,
-        asset: process.env.X402_ASSET ?? DEFAULT_ASSET,
-        amount: Number(process.env.X402_PRICE_TINYBARS ?? 1_000_000),
-      },
-    });
-
-    res.setHeader(HEADER_PAYMENT_REQUIRED, paymentRequired);
-    res.status(402).json({
-      error: "payment_required",
-      message: "x402 payment required — sign a TransferTransaction and send PAYMENT-SIGNATURE.",
+  app.post("/v1/strategy/yield-risk", (_req, res) => {
+    // Phase 3: payment wall is enforced by x402 middleware above.
+    // Phase 4: AI engine computes the actual yield-risk strategy here.
+    res.status(501).json({
+      status: "not_implemented",
+      message: "AI engine lands in Phase 4; payment processing is live via x402.",
     });
   });
 
