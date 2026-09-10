@@ -47,6 +47,30 @@ export type {
   PaymentPayloadConstructionInfo,
   PayerKeyType,
 } from "./payment-constructor";
+export { createX402PaymentClient } from "./x402-client";
+export type { X402PaymentClient } from "./x402-client";
+export {
+  SpendLedger,
+  SpendLedgerError,
+  createDefaultSpendLedger,
+  createSpendLedger,
+} from "./spend-ledger";
+export type { SpendEntry, SpendLedgerErrorCode } from "./spend-ledger";
+export {
+  PaidRequest,
+  PaidRequestError,
+  PaidRequestRunner,
+  defaultPaidRequestRunner,
+  submitPaidRequest,
+} from "./paid-request";
+export type {
+  PaidPaymentStatus,
+  PaidRequestErrorCode,
+  PaidRequestEvidence,
+  PaidRequestOptions,
+  PaidRequestPhase,
+  PaidRequestResult,
+} from "./paid-request";
 export type { PaymentRequirements } from "@x402/core/types";
 export {
   DEFAULT_MAX_PER_REQUEST_TINYBARS,

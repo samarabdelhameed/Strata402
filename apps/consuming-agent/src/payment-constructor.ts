@@ -1,3 +1,4 @@
+import type { PaymentPayload } from "@x402/core/types";
 import { PrivateKey } from "@x402/hedera";
 import { createClientHederaSigner } from "@x402/hedera";
 import { ExactHederaScheme } from "@x402/hedera/exact/client";
@@ -112,14 +113,26 @@ function parsePayerPrivateKey(raw: string): { key: PrivateKey; keyType: PayerKey
 }
 
 /**
- * Constructs a local x402 v2 exact-Hedera payment payload and returns a
- * boolean-like construction report. The raw payload and private key are
- * never exposed by this function.
+ * Phase 4.4-B1/B2 shared payer-signing context.
+ *
+ * Loads the matched `.env` payer credential, parses the key, and builds the
+ * local Hedera signer plus the exact-Hedera client scheme. This is local-only
+ * (no HTTP, no transaction submission) and is the single source for both the
+ * B1 report and the B2 signed-payload consumer.
  */
-export async function constructPaymentPayload(
-  challenge: ValidatedChallenge,
+export interface PayerSigningContext {
+  config: SafetyConfig;
+  scheme: ExactHederaScheme;
+  keyType: PayerKeyType;
+  payerAccountId: string;
+}
+
+/**
+ * Builds the local payer signing context from `.env`. Never resolves a payload.
+ */
+export async function createPaymentSigning(
   options: ConstructPaymentPayloadOptions = {},
-): Promise<PaymentPayloadConstructionInfo> {
+): Promise<PayerSigningContext> {
   const env = options.env ?? process.env;
   let config: SafetyConfig;
   try {
@@ -151,6 +164,43 @@ export async function constructPaymentPayload(
 
   const { key, keyType } = parsePayerPrivateKey(rawKey);
 
+  const signer = createClientHederaSigner(config.payerAccountId, key, {
+    network: config.network,
+  });
+  if (signer.accountId !== config.payerAccountId) {
+    throw new PaymentConstructorError(
+      "PAYER_MISMATCH",
+      `Signer payer ${signer.accountId} does not match configured ${config.payerAccountId}`,
+    );
+  }
+
+  const scheme = new ExactHederaScheme(signer);
+
+  return {
+    config,
+    scheme,
+    keyType,
+    payerAccountId: signer.accountId,
+  };
+}
+
+export interface SignedPaymentPayload {
+  paymentPayload: PaymentPayload;
+  info: PaymentPayloadConstructionInfo;
+}
+
+/**
+ * Creates the signed payment payload in memory and returns both the official
+ * x402 v2 `PaymentPayload` object (used by the B2 consumer to encode the
+ * PAYMENT-SIGNATURE header) and a boolean-like construction report. The raw
+ * payload and private key are never exposed by this module's public helpers.
+ */
+export async function createSignedPaymentPayload(
+  challenge: ValidatedChallenge,
+  options: ConstructPaymentPayloadOptions = {},
+): Promise<SignedPaymentPayload> {
+  const { config, scheme, keyType, payerAccountId } = await createPaymentSigning(options);
+
   const amountTinybars = parseTinybars(challenge.amount);
   if (amountTinybars > BigInt(config.maxPerRequestTinybars)) {
     throw new PaymentConstructorError(
@@ -167,17 +217,6 @@ export async function constructPaymentPayload(
     );
   }
 
-  const signer = createClientHederaSigner(config.payerAccountId, key, {
-    network: config.network,
-  });
-  if (signer.accountId !== config.payerAccountId) {
-    throw new PaymentConstructorError(
-      "PAYER_MISMATCH",
-      `Signer payer ${signer.accountId} does not match configured ${config.payerAccountId}`,
-    );
-  }
-
-  const scheme = new ExactHederaScheme(signer);
   const result = await scheme.createPaymentPayload(
     X402_VERSION,
     binding.requirements,
@@ -202,12 +241,34 @@ export async function constructPaymentPayload(
     );
   }
 
-  return {
-    created: true,
+  const paymentPayload: PaymentPayload = {
     x402Version: result.x402Version,
-    scheme: CHALLENGE_SCHEME,
-    keyType,
-    payerAccountId: signer.accountId,
-    payloadKeys,
+    accepted: binding.requirements,
+    payload,
   };
+
+  return {
+    paymentPayload,
+    info: {
+      created: true,
+      x402Version: result.x402Version,
+      scheme: CHALLENGE_SCHEME,
+      keyType,
+      payerAccountId,
+      payloadKeys,
+    },
+  };
+}
+
+/**
+ * Constructs a local x402 v2 exact-Hedera payment payload and returns a
+ * boolean-like construction report. The raw payload and private key are
+ * never exposed by this function.
+ */
+export async function constructPaymentPayload(
+  challenge: ValidatedChallenge,
+  options: ConstructPaymentPayloadOptions = {},
+): Promise<PaymentPayloadConstructionInfo> {
+  const { info } = await createSignedPaymentPayload(challenge, options);
+  return info;
 }
