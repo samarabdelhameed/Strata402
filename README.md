@@ -1,197 +1,164 @@
 <div align="center">
 
-# ⚡ Strata402 ⚡
-### Autonomous DeFi Intelligence on Hedera
+# Strata402
+
+### Autonomous DeFi Intelligence on Hedera — x402 Pay-Per-Call
 
 [![Hedera Testnet](https://img.shields.io/badge/Hedera-Testnet_Chain_296-3399FF?style=for-the-badge&logo=hedera)](https://hashscan.io/testnet)
 [![x402 Protocol](https://img.shields.io/badge/x402-Payment_Required-00F2FE?style=for-the-badge)](https://x402.org)
+[![Bun Monorepo](https://img.shields.io/badge/Bun-Monorepo-fbf0df?style=for-the-badge&logo=bun)](https://bun.sh)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Bun Workspace](https://img.shields.io/badge/Bun-Monorepo-fbf0df?style=for-the-badge&logo=bun)](https://bun.sh)
-[![Next.js 14](https://img.shields.io/badge/Next.js-14_App_Router-000000?style=for-the-badge&logo=next.js)](https://nextjs.org)
 
-**x402-powered AI DeFi strategy service for autonomous agents on Hedera.**
-
-[📹 Watch 5-Min Video Demo](https://youtube.com/watch?v=YOUR_DEMO_VIDEO) · [🌐 Live App](https://strata402.vercel.app) · [📜 HashScan HCS Topic](https://hashscan.io/testnet/topic/0.0.YOUR_TOPIC_ID)
+**Monetized x402 API gateway for AI DeFi strategy services on Hedera testnet.**
 
 </div>
 
----
-
-## 📌 Executive Summary
-
-**Strata402** bridges the intelligence gap between institutional quant funds and retail investors on **Hedera Hashgraph**. Powered by a specialized **RAG (Retrieval-Augmented Generation) AI Engine**, Strata402 analyzes onchain portfolio risks, tracks live liquidity pools on **SaucerSwap V2**, monitors lending APYs on **Bonzo Finance**, and constructs optimal limit order trades.
-
-To unlock a true **Agentic Economy**, Strata402 monetizes its AI inference endpoints natively using the **x402 Payment Protocol** and **Blocky402 Facilitator**. Consuming agents or human users pay sub-cent micro-fees in **HBAR** per API call with sub-second finality. Every inference request and payment proof leaves an unforgeable cryptographic audit trail on **Hedera Consensus Service (HCS Topic)**.
+> **Status (as of 2026-09-10):** Phase 1 (bootstrap) and Phase 2 (gateway + official x402 v2 middleware)
+> are implemented and verified locally. A review branch `phase-3-x402-middleware` is pushed to GitHub
+> and **awaiting reviewer approval — Phase 3 is NOT frozen yet**. Phase 4 (consuming agent, AI engine,
+> settlement, contracts) is **not started**.
 
 ---
 
-## 🏗️ System Architecture
+## What Is Implemented (Verified)
 
-```
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│                    1. USER & CONSUMING AGENT LAYER                                │
-│   [ Next.js 14 Dashboard + Privy Wallets ]    [ Autonomous Consuming Agent ]      │
-└─────────────────────────────────────────┬─────────────────────────────────────────┘
-                                          │
-                                          ▼ (x402 HTTP Request / HBAR Payment)
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│                    2. x402 GATEWAY & METERED PAYMENT LAYER                        │
-│   • x402 Interceptor Guard (HTTP 402 Challenge Generator)                         │
-│   • Blocky402 Payment Facilitator (Sub-second HBAR Settlement)                     │
-│   • HCS Audit Logger (Hedera Consensus Service Topic Submission)                  │
-└─────────────────────────────────────────┬─────────────────────────────────────────┘
-                                          │
-                                          ▼ (Verified X-402-Payment-Proof Header)
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│                    3. AI REASONING & RAG ENGINE (Python FastAPI)                  │
-│   • Intent-Based Tool Router (SaucerSwap vs Bonzo vs AutoSwap Router)             │
-│   • Portfolio Risk Scoring Engine & Quant Variance Models                         │
-│   • ChromaDB Vector Store (Hedera DeFi Protocol Knowledge Base)                   │
-└─────────────────────────────────────────┬─────────────────────────────────────────┘
-                                          │
-                  ┌───────────────────────┴───────────────────────┐
-                  ▼                                               ▼
-┌──────────────────────────────────┐            ┌──────────────────────────────────┐
-│   4a. SaucerSwap V2 Module       │            │   4b. Bonzo Finance Module       │
-│   • Liquidity Pool APYs & Swaps  │            │   • Live Lending/Borrowing APYs  │
-│   • Infinity Pools Yield Metrics │            │   • Health Factor & LTV Metrics  │
-└─────────────────┬────────────────┘            └─────────────────┬────────────────┘
-                  │                                               │
-                  └───────────────────────┬───────────────────────┘
-                                          │
-                                          ▼
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│                    5. HEDERA INFRASTRUCTURE & ONCHAIN LEDGER                      │
-│   [ Hedera Smart Contract Service ]  [ HCS Audit Topic ]  [ HCS-14 Agent Registry ] │
-└───────────────────────────────────────────────────────────────────────────────────┘
-```
+### 1. Monorepo bootstrap (Phase 1)
+Bun workspaces for `apps/*`, `services/*`, `packages/*`; strict TypeScript config; workspace validation
+script; scaffolding for the consuming agent, AI engine, and contracts directories.
 
----
+### 2. API Gateway (Phase 2) — `services/api-gateway`
+Express gateway exposing:
 
-## ✨ Key Features & Capabilities
+| Endpoint | Access | Behavior |
+| :--- | :--- | :--- |
+| `GET /health` | free | 200 + status/service/version, network `hedera:testnet`, `x402Version: 2` |
+| `GET /v1/services` | free | 200 + single-service catalog (`yield-risk`) |
+| `POST /v1/strategy/yield-risk` | **paid** | Official x402 v2 challenge: `HTTP 402` + `PAYMENT-REQUIRED` header |
 
-* 🤖 **x402 Pay-Per-Call AI Inference:** Monetize AI reasoning dynamically without API keys or monthly subscriptions.
-* 🛡️ **Risk-Adjusted Portfolio Assessment:** Computes real-time Health Factors and VaR (Value at Risk) metrics using Chainlink Oracles and Hedera Mirror Nodes.
-* 💧 **SaucerSwap V2 & Infinity Pool Integration:** Real-time liquidity indexing and automated multi-hop swap route building.
-* 🏦 **Bonzo Finance Lending Strategies:** Automated monitoring of deposit APYs, borrow rates, and collateral utilization.
-* 🎯 **Smart Limit Orders (`AutoSwapLimit.sol`):** Non-custodial Solidity smart contract deployed on Hedera Testnet (HSCS) executing orders upon reaching target price oracle triggers.
-* 📜 **Verifiable HCS Audit Trail:** Every inference request hash and payment proof is logged immutably on a dedicated Hedera Consensus Topic.
-* 🔍 **HCS-14 Agent Discovery:** Registered on the HCS-14 open directory for autonomous agent-to-agent discovery.
+The single MVP service (`yield-risk`) is priced at **1,000,000 tinybars = 0.01 HBAR**, asset `0.0.0`,
+network `hedera:testnet` (CAIP-2). `payTo` comes from `HEDERA_SERVICE_ACCOUNT_ID` (must not be `0.0.0`).
 
----
+### 3. Official x402 v2 Middleware — `services/api-gateway/src/x402.ts`
+Uses the official `@x402/*` packages (`2.25.0`), not a hand-rolled stub:
 
-## 🏆 Hackathon Tracks & Partner Bounties Alignment
+- `HTTPFacilitatorClient` + `x402ResourceServer` from `@x402/core/server`
+- `ExactHederaScheme` from `@x402/hedera/exact/server` (server-side variant)
+- `paymentMiddleware` from `@x402/express`
 
-Strata402 is built to win across multiple tracks by utilizing the best-in-class Web3 stack:
+Verified live: an unauthenticated call to the paid route returns a real `HTTP 402` with a base64-encoded
+JSON `PAYMENT-REQUIRED` envelope (per the x402 v2 HTTP transport). Decoded shape: `x402Version: 2`,
+`scheme: "exact"`, `network: "hedera:testnet"`, `amount: "1000000"`, `asset: "0.0.0"`, `payTo`,
+`maxTimeoutSeconds: 300`, plus facilitator-provided `extra` (e.g. `feePayer`).
 
-| Partner / Track | Integration Purpose in Strata402 | Status |
-| :--- | :--- | :---: |
-| **Hedera (Main AI Track)** | Native HBAR x402 payments, HSCS EVM contracts, HCS Audit Trail, HCS-14 Agent Discovery | ✅ Live |
-| **The Graph ($15k)** | Subgraph indexing for SaucerSwap liquidity pools & Bonzo Finance lending protocols | ✅ Integrated |
-| **1inch ($7k)** | Aggregation router for multi-chain liquidity and optimal execution pathing | ✅ Integrated |
-| **Chainlink ($3k)** | Decentralized Price Feeds for Net Asset Value (NAV) and risk calculation | ✅ Integrated |
-| **ENS ($5k)** | Agent identity resolution (`majorgainz.eth`) for human-readable agent endpoints | ✅ Integrated |
-| **Privy ($5k)** | Seamless social/email login with embedded non-custodial wallet creation | ✅ Integrated |
+### 4. Shared SDK — `packages/x402-sdk`
+Centralizes canonical constants used by the gateway:
 
----
+- `X402_VERSION = 2`
+- Headers: `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, `PAYMENT-RESPONSE`
+- `hedera:testnet`, `0.0.0`, 1,000,000 tinybars
+- `buildServiceCatalog()` / `serviceAccountFromEnv()` for env-driven configuration
 
-## 🛠️ Monorepo Structure
+## Monorepo Structure
 
 ```text
 strata402/
 ├── apps/
-│   ├── web/                    # Next.js 14 App Router Frontend + Privy Auth
-│   └── consuming-agent/        # Autonomous x402 Client Agent (Automated Payer)
-├── contracts/                  # Hardhat EVM Solidity Smart Contracts (HSCS)
-│   ├── src/
-│   │   ├── AutoSwapLimit.sol   # SaucerSwap V2 Limit Order Engine
-│   │   ├── HederaYieldVault.sol# Automated Yield Vault
-│   │   └── AgentRegistryHCS14.sol # Onchain Identity Registry
-│   └── scripts/deploy.ts       # Testnet Deployment Script
+│   └── consuming-agent/        # scaffold only (Phase 4: not started)
+├── contracts/                  # scaffold only (not implemented)
+├── packages/
+│   └── x402-sdk/               # shared x402 constants + catalog builder (implemented)
+├── scripts/
+│   └── validate-workspaces.mjs # workspace validation (implemented)
 ├── services/
-│   ├── api-gateway/            # Express.js x402 Gateway Guard & HCS Logger
-│   └── ai-engine/              # Python FastAPI & LlamaIndex RAG Engine
-└── packages/
-    └── x402-hedera-sdk/        # Shared Types & Header Parsing SDK
+│   ├── api-gateway/            # Express gateway + official x402 middleware (implemented)
+│   └── ai-engine/              # scaffold only (Phase 4: not started)
+├── tests/
+│   ├── unit/                   # workspace + x402 SDK export probes (implemented)
+│   ├── integration/            # gateway tests incl. live 402 challenge (implemented)
+│   └── e2e/, x402/             # empty placeholders
+├── .env.example
+├── bunfig.toml
+├── package.json
+└── tsconfig.json
 ```
 
----
-
-## 🚀 Quick Start Guide
+## Quick Start
 
 ### Prerequisites
-* [Bun](https://bun.sh) (v1.1+)
-* [Python](https://python.org) (v3.11+)
-* Hedera Testnet Account (Operator ID & Private Key from [portal.hedera.com](https://portal.hedera.com))
+- Bun `>=1.1` (works at `1.2.13`) or Node `>=20`
 
-### 1. Installation
+### 1. Install
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/strata402.git
-cd strata402
-
-# Install all monorepo dependencies using Bun
 bun install
 ```
 
-### 2. Environment Setup
-Copy `.env.example` to `.env` in the root directory:
+### 2. Environment
 ```bash
 cp .env.example .env
 ```
-Fill in your `OPERATOR_ID`, `OPERATOR_KEY`, and API keys for OpenAI, The Graph, 1inch, and Privy.
+Fund a real Hedera testnet account and set `HEDERA_SERVICE_ACCOUNT_ID` / `HEDERA_SERVICE_ACCOUNT_KEY`
+before any real settlement. The committed `.env.example` contains development placeholders only —
+never commit real keys.
 
-### 3. Deploy Smart Contracts to Hedera Testnet
+### 3. Run the gateway
 ```bash
-cd contracts
-bun run hardhat compile
-bun run scripts/deploy.ts --network hedera_testnet
+bun services/api-gateway/src/index.ts
 ```
 
-### 4. Initialize HCS Audit Topic
+### 4. Verify
 ```bash
-bun run scripts/create-hcs-topic.ts
+curl http://localhost:8080/health
+curl http://localhost:8080/v1/services
+curl -i -X POST http://localhost:8080/v1/strategy/yield-risk   # => 402 Payment Required + PAYMENT-REQUIRED
 ```
 
-### 5. Start All Services Locally
+## Environment Variables
+
+| Variable | Purpose |
+| :--- | :--- |
+| `HEDERA_NETWORK` | Hedera network (`testnet`) |
+| `STRATA_NETWORK` | CAIP-2 network (`hedera:testnet`) |
+| `HEDERA_MIRROR_NODE_URL` | Mirror node endpoint |
+| `HEDERA_SERVICE_ACCOUNT_ID` | `payTo` for the exact scheme (must not be `0.0.0`) |
+| `HEDERA_SERVICE_ACCOUNT_KEY` | Service account operator key (dev placeholder) |
+| `X402_FACILITATOR_URL` | x402 facilitator (default `https://x402.org/facilitator`) |
+| `X402_PRICE_TINYBARS` | Price in tinybars (default `1000000`) |
+| `X402_ASSET` | HBAR asset id (default `0.0.0`) |
+| `PORT` | Gateway port (default `8080`) |
+
+## Commands
+
 ```bash
-# Start API Gateway, AI Engine, and Frontend concurrently
-bun run dev
+bun run validate     # workspaces OK
+bun run typecheck    # tsc --noEmit (strict)
+bun test             # unit + integration (13 pass / 0 fail)
 ```
 
-Visit `http://localhost:3000` to interact with the Strata402 Dashboard!
+The integration suite boots the real gateway and asserts a live `402` + `PAYMENT-REQUIRED` challenge,
+including base64 JSON decoding.
 
----
+## Not Yet Implemented (Roadmap — Phase 4 and beyond)
 
-## 🧪 Running Autonomous Consuming Agent Test (x402 End-to-End)
+These are **planned, not built**:
 
-To test autonomous agent-to-agent payment and execution:
+- Consuming-agent payment flow (agent pays x402 + re-sends challenge)
+- AI engine + yield-risk computation (currently a `501` placeholder behind the payment wall)
+- Real end-to-end Hedera settlement (`PAYMENT-SIGNATURE` proof → verified → 200 response)
+- Smart contracts (e.g. limit orders), HCS audit topics, HCS-14 discovery
+- Frontend / dashboard
+- SaucerSwap / Bonzo Finance protocol modules
 
-```bash
-bun run --filter consuming-agent start
-```
+Nothing above is claimed as working until it is implemented and verified on this repository.
 
-**Expected Flow Output:**
-1. Agent discovers Strata402 endpoint via HCS-14 Topic.
-2. Agent sends AI reasoning request to `http://localhost:4000/api/v1/ai/reasoning`.
-3. Server returns `HTTP 402 Payment Required` with `HBAR` amount challenge.
-4. Agent executes micro-payment via Blocky402 on Hedera Testnet.
-5. Agent re-sends request with `X-402-Payment-Proof` header.
-6. Server verifies proof, logs transaction hash to HCS Topic, and returns AI Portfolio Strategy Payload (`HTTP 200 OK`).
+## Repository Conventions
 
----
+- **Primary dev environment:** Mac working copy
+- **Repository authority:** GitHub (`origin`)
+- **Shared conventions:** canonical x402 v2 headers only (`PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE` /
+  `PAYMENT-RESPONSE`) — the legacy v1 `X-402-Payment-Proof` header is explicitly not used.
+- Commit history on `main` (Phase 1–2) is stable at `69fbe53`; Phase 3 lives on
+  `phase-3-x402-middleware` pending review.
 
-## 📜 Smart Contract Deployments (Hedera Testnet - Chain ID 296)
+## License
 
-* **AutoSwapLimit:** `0x1234567890abcdef1234567890abcdef12345678` ([HashScan Link](https://hashscan.io/testnet/contract/0x1234567890abcdef1234567890abcdef12345678))
-* **HederaYieldVault:** `0xabcdef1234567890abcdef1234567890abcdef12` ([HashScan Link](https://hashscan.io/testnet/contract/0xabcdef1234567890abcdef1234567890abcdef12))
-* **AgentRegistryHCS14:** `0x7890abcdef1234567890abcdef1234567890abcd` ([HashScan Link](https://hashscan.io/testnet/contract/0x7890abcdef1234567890abcdef1234567890abcd))
-* **HCS Audit Topic ID:** `0.0.543210` ([HashScan Topic Messages](https://hashscan.io/testnet/topic/0.0.543210))
-
-> ⚠️ Replace the placeholder addresses above with your actual deployed values from [HashScan](https://hashscan.io/testnet) before the final submission.
-
----
-
-## 📄 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
+MIT
