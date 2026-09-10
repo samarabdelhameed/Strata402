@@ -73,6 +73,44 @@ export type {
 } from "./paid-request";
 export type { PaymentRequirements } from "@x402/core/types";
 export {
+  ENV_ALLOWED_PAYTO,
+  ENV_FACILITATOR_URL,
+  ENV_MIRROR_BASE_URL,
+  ENV_RUN_C0,
+  PLACEHOLDER_PAYTO,
+  PreflightError,
+  parseAllowedPayTos,
+  runPreflight,
+} from "./preflight";
+export type {
+  PreflightErrorCode,
+  PreflightFetch,
+  PreflightOptions,
+  PreflightReport,
+} from "./preflight";
+export {
+  FACILITATOR_SUPPORTED_PATH,
+  FacilitatorReadError,
+  fetchFacilitatorSupported,
+  parseSupportedJson,
+  selectSupportedKind,
+} from "./facilitator";
+export type {
+  FacilitatorFetch,
+  FacilitatorReadErrorCode,
+  FacilitatorSupported,
+  MatchedSupportedKind,
+} from "./facilitator";
+export {
+  MIRROR_ACCOUNTS_PATH,
+  MirrorReadError,
+  fetchPayerAccount,
+  parseAccountJson,
+  readPayerAccount,
+} from "./payer-mirror";
+export type { MirrorFetch, MirrorReadErrorCode, PayerAccountRead } from "./payer-mirror";
+export { EXIT_MISCONFIG, EXIT_OK, EXIT_PREFLIGHT_FAILED, isC0Enabled, runCliC0 } from "./cli-c0";
+export {
   DEFAULT_MAX_PER_REQUEST_TINYBARS,
   DEFAULT_MAX_TOTAL_BUDGET_TINYBARS,
   DEFAULT_NETWORK,

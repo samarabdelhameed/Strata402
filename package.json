@@ -12,6 +12,7 @@
     "validate": "bun run scripts/validate-workspaces.mjs",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
+    "preflight:c0": "bun apps/consuming-agent/src/cli-c0.ts",
     "dev": "echo \"Dev orchestration arrives in Phase 3+.\""
   },
   "devDependencies": {
