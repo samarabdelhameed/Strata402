@@ -11,6 +11,22 @@ export type { DiscoveryFetch } from "./discover";
 export { DiscoveryError } from "./errors";
 export type { DiscoveryErrorCode } from "./errors";
 export {
+  CHALLENGE_SCHEME,
+  PAYMENT_REQUIRED_HEADER,
+  PAYMENT_SIGNATURE_HEADER,
+  X402_VERSION,
+  ChallengeError,
+  decodeChallengeHeader,
+  requestUnpaidChallenge,
+  validateChallenge,
+} from "./challenge";
+export type {
+  ChallengeErrorCode,
+  ChallengeFetch,
+  UnpaidChallengeResult,
+  ValidatedChallenge,
+} from "./challenge";
+export {
   ALLOWED_ASSET,
   ALLOWED_CURRENCY,
   ALLOWED_NETWORK,
