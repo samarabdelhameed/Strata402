@@ -10,7 +10,8 @@
     "./server": "./src/server.ts",
     "./x402": "./src/x402.ts",
     "./analyst": "./src/analyst.ts",
-    "./mirror": "./src/mirror.ts"
+    "./mirror": "./src/mirror.ts",
+    "./pages/demo": "./src/pages/demo.ts"
   },
   "scripts": {
     "dev": "bun run src/index.ts"

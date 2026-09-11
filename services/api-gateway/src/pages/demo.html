@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Strata402 — Yield-Risk Demo</title>
+<style>
+:root{--bg:#06090f;--panel:rgba(17,24,39,.55);--border:rgba(94,234,212,.18);--cyan:#22d3ee;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--text:#e5e7eb;--muted:#9ca3af;--mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace}
+*{box-sizing:border-box;margin:0}
+body{min-height:100vh;background:radial-gradient(1200px 600px at 10% -10%,rgba(34,211,238,.12),transparent 60%),radial-gradient(900px 500px at 110% 10%,rgba(52,211,153,.1),transparent 55%),var(--bg);color:var(--text);font-family:-apple-system,"SF Pro Display","Segoe UI",Roboto,sans-serif;padding:2rem 1.25rem 4rem}
+.glass{background:var(--panel);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--border);border-radius:1rem;padding:1.25rem 1.5rem}
+.wrap{max-width:1080px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.75rem;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:.02em;font-size:1.15rem}
+.brand .dot{color:var(--cyan)}
+.version{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));margin-bottom:1.5rem}
+.card h2{font-size:.72rem;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin-bottom:.6rem}
+.val{font-family:var(--mono);font-size:1rem;word-break:break-word}
+.pill{display:inline-block;font-size:.7rem;padding:.2rem .55rem;border-radius:999px;border:1px solid var(--border);font-family:var(--mono)}
+.pill.ok{color:var(--emerald);border-color:rgba(52,211,153,.4)}
+.pill.warn{color:var(--amber);border-color:rgba(251,191,36,.4)}
+.pill.err{color:var(--rose);border-color:rgba(251,113,133,.4)}
+.muted{color:var(--muted);font-size:.85rem}
+pre{font-family:var(--mono);background:rgba(6,9,15,.7);border:1px solid var(--border);border-radius:.75rem;padding:1rem;font-size:.78rem;overflow:auto;white-space:pre-wrap}
+button{font:inherit;cursor:pointer;border:1px solid var(--border);background:rgba(34,211,238,.12);color:var(--cyan);padding:.55rem 1.1rem;border-radius:.6rem;transition:.15s}
+button:hover{background:rgba(34,211,238,.22)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:.5rem}
+.limitations{margin-top:1.25rem}
+.limitations li{font-size:.82rem;color:var(--muted);margin-bottom:.35rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Strata402<span class="dot">.</span>_yield-risk <span class="version">read-only demo</span></div>
+  </header>
+
+  <div class="grid">
+    <section class="glass card"><h2>Service</h2><div class="val" id="svc">...</div><div class="muted" id="svcSub"></div></section>
+    <section class="glass card"><h2>Price</h2><div class="val" id="price">...</div><div class="muted" id="priceSub"></div></section>
+    <section class="glass card"><h2>Network</h2><div class="val" id="net">...</div><div class="muted" id="netSub"></div></section>
+    <section class="glass card"><h2>Recipient</h2><div class="val" id="payTo">...</div><div class="muted">payTo (from contract)</div></section>
+  </div>
+
+  <div class="row">
+    <div>
+      <span class="pill" id="pill" style="visibility:hidden">...</span>
+      <span class="muted" id="pillNote"></span>
+    </div>
+    <button id="btn">Validation read-only</button>
+  </div>
+
+  <h2 class="muted" style="margin-top:1.5rem;margin-bottom:.5rem">Limitations</h2>
+  <ul class="limitations glass">
+    <li>Protocol APY: <b>UNAVAILABLE</b> (no live pool source)</li>
+    <li>Bonzo: <b>DEFERRED</b></li>
+    <li>SaucerSwap: <b>PENDING</b> (needs official API source)</li>
+  </ul>
+
+  <pre id="raw" style="margin-top:1.25rem">...</pre>
+</div>
+
+<script>
+"use strict";
+var pill  = document.getElementById("pill");
+var note  = document.getElementById("pillNote");
+var raw   = document.getElementById("raw");
+
+function setStatus(cls, text, desc) {
+  pill.textContent = text;
+  pill.className = "pill " + cls;
+  pill.style.visibility = "visible";
+  note.textContent = desc || "";
+}
+
+async function probe() {
+  pill.style.visibility = "hidden";
+  raw.textContent = "Loading from real gateway...";
+  setStatus("warn", "loading...", "reading real endpoints");
+  try {
+    var h = await fetch("/health").then(function(r){return r.json()});
+    document.getElementById("svc").textContent    = h.service || "?";
+    document.getElementById("svcSub").textContent = "v" + (h.version || "?");
+    document.getElementById("net").textContent    = h.network || "?";
+    document.getElementById("netSub").textContent = "x402v" + (h.x402Version || "?");
+
+    var c = await fetch("/v1/services").then(function(r){return r.json()}).catch(function(){return null});
+    var netVal = h.network || "?";
+    var payToVal = "?";
+    var priceVal = "?";
+    var priceUnit = "";
+    if (c && typeof c === "object" && Array.isArray(c.services) && c.services.length > 0) {
+      var svc = c.services[0];
+      if (typeof svc.priceTinybars === "number") priceVal = String(svc.priceTinybars) + " tinybar";
+      if (svc.asset) priceUnit = svc.asset + " (" + (svc.unit || "tinybar") + " exact)";
+      if (c.network) netVal = c.network;
+      if (c.payTo) payToVal = c.payTo;
+    }
+    document.getElementById("payTo").textContent = payToVal;
+    document.getElementById("net").textContent = netVal;
+    document.getElementById("price").textContent = priceVal;
+    document.getElementById("priceSub").textContent = priceUnit;
+
+    var p = await fetch("/v1/strategy/yield-risk", {method:"POST", headers:{"content-type":"application/json"}, body:"{}"})
+      .then(function(r){ return r.status; })
+      .catch(function(){ return -1; });
+
+    if (p === 402) {
+      setStatus("ok", "402 PAYMENT-REQUIRED", "real unpaid challenge (read-only, no PAYMENT-SIGNATURE sent)");
+    } else {
+      setStatus("warn", "HTTP " + p, "unexpected status without payment");
+    }
+
+    raw.textContent = JSON.stringify({ health: h, catalog: c, probeStatus: p }, null, 2);
+  } catch(e) {
+    setStatus("err", "error", String(e));
+    raw.textContent = String(e);
+  }
+}
+
+document.getElementById("btn").addEventListener("click", probe);
+probe();
+</script>
+</body>
+</html>

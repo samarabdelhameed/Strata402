@@ -1,9 +1,11 @@
 import { DEFAULT_ASSET, DEFAULT_NETWORK, ENV_PRICE_TINYBARS, serviceAccountFromEnv } from "@strata402/x402-sdk";
 import { buildApp } from "./server";
 import { FACILITATOR_URL } from "./x402";
+import { mountDemoPage } from "./pages/demo";
 
 const port = Number(process.env.PORT ?? 8080);
 const app = buildApp();
+mountDemoPage(app);
 
 app.listen(port, () => {
   console.log(`[strata402] api-gateway listening on http://localhost:${port}`);
