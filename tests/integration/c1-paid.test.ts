@@ -46,7 +46,7 @@ function makeCatalog(payTo: string): Record<string, unknown> {
   return { network: "hedera:testnet", currency: "HBAR", payTo, services: [VALID_SERVICE] };
 }
 
-function paymentRequiredFor(payTo: string): string {
+function paymentRequiredFor(payTo: string, overrides: Record<string, unknown> = {}): string {
   return encodePaymentRequiredHeader({
     x402Version: 2,
     accepts: [
@@ -58,6 +58,7 @@ function paymentRequiredFor(payTo: string): string {
         payTo,
         maxTimeoutSeconds: 300,
         extra: { feePayer: "0.0.9185802" },
+        ...overrides,
       },
     ],
     resource: { url: "https://gateway.test/v1/strategy/yield-risk" },
@@ -118,6 +119,7 @@ function readsFetch(
   sendStatus = 200,
   isConfirmed = false,
   mirror: () => Response = () => json(200, mirrorTransactions(PAYER, CERTIFIED_PAYTO, AMOUNT)),
+  acceptOverrides: Record<string, unknown> = {},
 ): { fetchFn: C1Fetch; calls: Array<{ url: string; init: RequestInit }> } {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const fetchFn = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
@@ -126,7 +128,7 @@ function readsFetch(
     calls.push({ url, init: init ?? {} });
 
     if (!isConfirmed && endpointRoute(url)) {
-      return json(402, { error: "payment required" }, { "payment-required": paymentRequiredFor(challengePayTo) });
+      return json(402, { error: "payment required" }, { "payment-required": paymentRequiredFor(challengePayTo, acceptOverrides) });
     }
     if (url.includes(DISCOVERY_PATH)) {
       return json(200, makeCatalog(catalogPayTo));
@@ -141,7 +143,7 @@ function readsFetch(
       if (headers[PAYMENT_SIGNATURE_HEADER] !== undefined) {
         return json(sendStatus, { ok: true });
       }
-      return json(402, { error: "payment required" }, { "payment-required": paymentRequiredFor(challengePayTo) });
+      return json(402, { error: "payment required" }, { "payment-required": paymentRequiredFor(challengePayTo, acceptOverrides) });
     }
     throw new Error(`readsFetch: no route for ${url}`);
   }) as unknown as C1Fetch;
@@ -236,6 +238,29 @@ test("payTo mismatch between 402 and catalog fails closed with PAYTO_MISMATCH", 
   const env = confirmEnv({ STRATA402_ALLOWED_PAYTO: "0.0.7777,0.0.8888" });
 
   await expectC1Error(() => runC1({ env, fetchFn }), "PAYTO_MISMATCH");
+});
+
+test("a wrong network/asset/amount/scheme 402 fails closed before any signature is formed", async () => {
+  const cases: Array<{ overrides: Record<string, unknown>; errorCode: string }> = [
+    { overrides: { network: "hedera:mainnet" }, errorCode: "NETWORK" },
+    { overrides: { asset: "0.0.1" }, errorCode: "ASSET" },
+    { overrides: { amount: "2000000" }, errorCode: "AMOUNT" },
+    { overrides: { scheme: "approximate" }, errorCode: "SCHEME" },
+  ];
+
+  for (const { overrides, errorCode } of cases) {
+    const env = confirmEnv({ [ENV_C1_CONFIRM]: "true" });
+    const { fetchFn, calls } = readsFetch(CERTIFIED_PAYTO, CERTIFIED_PAYTO, 200, true, undefined, overrides);
+
+    await expect(runC1({ env, fetchFn })).rejects.toMatchObject({ code: errorCode });
+
+    const signedCalls = calls.filter((c) => {
+      const headers = c.init.headers as Record<string, string> | undefined;
+      return headers?.[PAYMENT_SIGNATURE_HEADER] !== undefined;
+    });
+    expect(signedCalls.length).toBe(0);
+    expect(calls.some((c) => c.url.includes(MIRROR_TRANSACTIONS_PATH))).toBe(false);
+  }
 });
 
 test("payer equal to payTo is rejected with PAYER_EQUALS_PAYTO", async () => {

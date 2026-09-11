@@ -1,163 +1,376 @@
-<div align="center">
-
 # Strata402
 
 ### Autonomous DeFi Intelligence on Hedera — x402 Pay-Per-Call
 
-[![Hedera Testnet](https://img.shields.io/badge/Hedera-Testnet_Chain_296-3399FF?style=for-the-badge&logo=hedera)](https://hashscan.io/testnet)
-[![x402 Protocol](https://img.shields.io/badge/x402-Payment_Required-00F2FE?style=for-the-badge)](https://x402.org)
-[![Bun Monorepo](https://img.shields.io/badge/Bun-Monorepo-fbf0df?style=for-the-badge&logo=bun)](https://bun.sh)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-
-**Monetized x402 API gateway for AI DeFi strategy services on Hedera testnet.**
-
-</div>
-
-> **Status (as of 2026-09-10):** Phase 1 (bootstrap) and Phase 2 (gateway + official x402 v2 middleware)
-> are implemented and verified locally. A review branch `phase-3-x402-middleware` is pushed to GitHub
-> and **awaiting reviewer approval — Phase 3 is NOT frozen yet**. Phase 4 (consuming agent, AI engine,
-> settlement, contracts) is **not started**.
+> A real, paid AI DeFi strategy endpoint on Hedera testnet, gated by the
+> [x402 v2](https://x402.org) payment protocol and settled through Blocky402.
 
 ---
 
-## What Is Implemented (Verified)
+## 1. Overview
 
-### 1. Monorepo bootstrap (Phase 1)
-Bun workspaces for `apps/*`, `services/*`, `packages/*`; strict TypeScript config; workspace validation
-script; scaffolding for the consuming agent, AI engine, and contracts directories.
+Strata402 is an HTTP-native, x402-gated metered API gateway for AI DeFi
+intelligence on Hedera. A single autonomous consuming agent proves the full
+machine-to-machine payment loop end-to-end:
 
-### 2. API Gateway (Phase 2) — `services/api-gateway`
-Express gateway exposing:
+1. Agent sends an unpaid `POST /v1/strategy/yield-risk`.
+2. Gateway returns **HTTP 402** + a machine-readable `PAYMENT-REQUIRED` header.
+3. Agent signs a real HBAR x402 transfer and returns the `PAYMENT-SIGNATURE` header.
+4. Gateway verifies, settles through Blocky402, and returns a paid JSON analysis
+   with the `PAYMENT-RESPONSE` header.
 
-| Endpoint | Access | Behavior |
-| :--- | :--- | :--- |
-| `GET /health` | free | 200 + status/service/version, network `hedera:testnet`, `x402Version: 2` |
-| `GET /v1/services` | free | 200 + single-service catalog (`yield-risk`) |
-| `POST /v1/strategy/yield-risk` | **paid** | Official x402 v2 challenge: `HTTP 402` + `PAYMENT-REQUIRED` header |
+**Nothing is mocked.** The demo is a real testnet HBAR transfer with a real
+on-chain transaction.
 
-The single MVP service (`yield-risk`) is priced at **1,000,000 tinybars = 0.01 HBAR**, asset `0.0.0`,
-network `hedera:testnet` (CAIP-2). `payTo` comes from `HEDERA_SERVICE_ACCOUNT_ID` (must not be `0.0.0`).
+---
 
-### 3. Official x402 v2 Middleware — `services/api-gateway/src/x402.ts`
-Uses the official `@x402/*` packages (`2.25.0`), not a hand-rolled stub:
+## 2. Proof of End-to-End Success
 
-- `HTTPFacilitatorClient` + `x402ResourceServer` from `@x402/core/server`
-- `ExactHederaScheme` from `@x402/hedera/exact/server` (server-side variant)
-- `paymentMiddleware` from `@x402/express`
+A real paid request was settled on Hedera testnet on 2026-09-10:
 
-Verified live: an unauthenticated call to the paid route returns a real `HTTP 402` with a base64-encoded
-JSON `PAYMENT-REQUIRED` envelope (per the x402 v2 HTTP transport). Decoded shape: `x402Version: 2`,
-`scheme: "exact"`, `network: "hedera:testnet"`, `amount: "1000000"`, `asset: "0.0.0"`, `payTo`,
-`maxTimeoutSeconds: 300`, plus facilitator-provided `extra` (e.g. `feePayer`).
+| Field | Value |
+| :--- | :--- |
+| Transaction ID | `0.0.9185802-1789101908-717608026` |
+| Payer | `0.0.10329902` |
+| Pay-to (service account) | `0.0.10464194` |
+| Amount | 1,000,000 tinybars = 0.01 HBAR |
+| Protocol | x402 v2 / `exact` scheme |
+| Network | `hedera:testnet` |
+| Settlement | Blocky402 `verify` + `settle` succeeded |
+| HTTP status after settlement | `200 OK` |
+| Settlement verified | `true` |
 
-### 4. Shared SDK — `packages/x402-sdk`
-Centralizes canonical constants used by the gateway:
+You can verify this transaction on HashScan:
+`https://hashscan.io/testnet/transaction/0.0.9185802-1789101908-717608026`
 
-- `X402_VERSION = 2`
-- Headers: `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, `PAYMENT-RESPONSE`
-- `hedera:testnet`, `0.0.0`, 1,000,000 tinybars
-- `buildServiceCatalog()` / `serviceAccountFromEnv()` for env-driven configuration
+---
 
-## Monorepo Structure
+## 3. Architecture
 
-```text
-strata402/
-├── apps/
-│   └── consuming-agent/        # scaffold only (Phase 4: not started)
-├── contracts/                  # scaffold only (not implemented)
-├── packages/
-│   └── x402-sdk/               # shared x402 constants + catalog builder (implemented)
-├── scripts/
-│   └── validate-workspaces.mjs # workspace validation (implemented)
-├── services/
-│   ├── api-gateway/            # Express gateway + official x402 middleware (implemented)
-│   └── ai-engine/              # scaffold only (Phase 4: not started)
-├── tests/
-│   ├── unit/                   # workspace + x402 SDK export probes (implemented)
-│   ├── integration/            # gateway tests incl. live 402 challenge (implemented)
-│   └── e2e/, x402/             # empty placeholders
-├── .env.example
-├── bunfig.toml
-├── package.json
-└── tsconfig.json
+```
+┌──────────────────────────────────────────────────────────┐
+│                   CONSUMING AGENT                        │
+│        apps/consuming-agent (CLI, autonomous payer)      │
+└────────────────────────┬─────────────────────────────────┘
+                         │  HTTP + x402 v2 canonical headers
+                         │  PAYMENT-REQUIRED / PAYMENT-SIGNATURE
+                         ▼
+┌──────────────────────────────────────────────────────────┐
+│                API GATEWAY (Express)                      │
+│  GET /health          free                               │
+│  GET /v1/services     free (service discovery)           │
+│  POST /v1/strategy/yield-risk   PAID (x402 v2 guard)    │
+└────────┬─────────────┬───────────────────┬───────────────┘
+         │             │                   │
+         ▼             ▼                   ▼
+   Mirror Node    Blocky402          x402-sdk
+   (real reads)   /verify + /settle  (shared contract)
 ```
 
-## Quick Start
+---
+
+## 4. What Is Implemented
+
+| Component | Status | Details |
+| :--- | :--- | :--- |
+| API Gateway (`services/api-gateway`) | Done | Express, x402 v2 middleware, Mirror Node reads, yield-risk endpoint |
+| Shared SDK (`packages/x402-sdk`) | Done | Canonical constants, service catalog, yield-risk request contract |
+| Consuming Agent (`apps/consuming-agent`) | Done | Discovery, challenge, x402 payment, retry, Mirror verification |
+| Hardened Request Contract | Done | Shared `{ accountId, riskTolerance, amountHbar }` — 400 before any mirror read |
+| Fail-Closed Payment Validation | Done | Wrong network/asset/amount/scheme → rejected, zero signed requests |
+| Mirror Node Analysis | Done | Honest account-level on-chain facts with freshness + limitations |
+| Phase 7A Stabilization | Done | Typecheck green, 174 tests pass, live mirror verified |
+
+**Out of scope (explicitly deferred):** Smart contracts, Frontend, SaucerSwap
+adapter, Bonzo adapter, HCS audit, AI engine, dynamic pricing, HTS payments.
+
+---
+
+## 5. Quick Start
 
 ### Prerequisites
-- Bun `>=1.1` (works at `1.2.13`) or Node `>=20`
+- Bun `>=1.1` (works at 1.2.13) or Node `>=20`
+- A funded Hedera testnet account
 
-### 1. Install
+### Install
 ```bash
 bun install
 ```
 
-### 2. Environment
+### Environment
 ```bash
 cp .env.example .env
+# Fill in your Hedera testnet account credentials in .env
 ```
-Fund a real Hedera testnet account and set `HEDERA_SERVICE_ACCOUNT_ID` / `HEDERA_SERVICE_ACCOUNT_KEY`
-before any real settlement. The committed `.env.example` contains development placeholders only —
-never commit real keys.
 
-### 3. Run the gateway
+### Run the Gateway
 ```bash
 bun services/api-gateway/src/index.ts
+# Gateway runs at http://localhost:8080
 ```
 
-### 4. Verify
+### Run the Consuming Agent (C1 paid request)
 ```bash
-curl http://localhost:8080/health
-curl http://localhost:8080/v1/services
-curl -i -X POST http://localhost:8080/v1/strategy/yield-risk   # => 402 Payment Required + PAYMENT-REQUIRED
+# Set your C1 environment
+export C1_CONFIRM=true
+export HEDERA_SERVICE_ACCOUNT_ID=0.0.xxxxxx
+export HEDERA_SERVICE_ACCOUNT_KEY=your-private-key
+export STRATA402_ALLOWED_PAYTO=0.0.xxxxxx
+export X402_FACILITATOR_URL=https://x402.org/facilitator
+
+# Run the agent
+bun apps/consuming-agent/src/cli-c1-paid.ts
 ```
 
-## Environment Variables
+---
 
-| Variable | Purpose |
+## 6. API Reference
+
+### `GET /health` — FREE
+Returns service status.
+```json
+{ "status": "ok", "service": "strata402-api-gateway", "version": "0.1.0" }
+```
+
+### `GET /v1/services` — FREE
+Service discovery. Returns the single `yield-risk` service with full metadata
+(network, asset, price, payTo, facilitator).
+
+### `POST /v1/strategy/yield-risk` — PAID (x402 v2)
+
+**Request body (shared contract):**
+```json
+{
+  "accountId": "0.0.10464194",
+  "riskTolerance": "balanced",
+  "amountHbar": 1
+}
+```
+
+| Field | Type | Rules |
+| :--- | :--- | :--- |
+| `accountId` | string | Required. Valid Hedera account `0.0.xxxxx`. Not `0.0.0`. Max 19 digits. |
+| `riskTolerance` | string | Required. `conservative`, `balanced`, or `aggressive`. |
+| `amountHbar` | number | Required. Positive, finite, max 1,000,000. Safe tinybar precision. |
+
+**Unpaid → HTTP 402**
+```text
+HTTP/1.1 402 Payment Required
+PAYMENT-REQUIRED: <base64-encoded PaymentRequired>
+```
+
+**Paid → HTTP 200**
+Returns structured analysis with `observed` (account, balance, recent30d),
+`derivedMetrics`, `freshnessHealth`, `unavailable` (protocol-specific features
+not claimed), `limitations`, `payment` block, and `disclaimer`.
+
+**Contract violation → HTTP 400**
+```json
+{
+  "status": "error",
+  "code": "invalid_request_contract",
+  "message": "Request does not satisfy the yield-risk contract: ...",
+  "issues": ["missing_accountId"]
+}
+```
+
+---
+
+## 7. The Yield-Risk Contract (Shared Between Gateway and Agent)
+
+The contract is defined in `packages/x402-sdk/src/yield-risk-contract.ts` and
+used identically by both the gateway (server-side rejection) and the consuming
+agent (fail-closed pre-send validation).
+
+Key invariants:
+- **Gateway:** malformed body → HTTP 400 **before** any Mirror Node read. No
+  paid caller is charged for an invalid contract.
+- **Agent:** `buildYieldRiskRequestBody()` validates via the same parser and
+  throws `YieldRiskRequestError` before any x402 payment is attempted.
+- **No fabricated data:** if Mirror reads fail, the response degrades to
+  `dataUnavailable: true` with neutral indications — never fake risk scores.
+
+---
+
+## 8. Fail-Closed Payment Validation
+
+The consuming agent validates the x402 challenge **before** forming any
+`PAYMENT-SIGNATURE`. Any of the following causes immediate abort with zero
+on-chain spend:
+
+| Check | Error code | What happens |
+| :--- | :--- | :--- |
+| Wrong network | `NETWORK` | Aborted, zero signatures formed |
+| Wrong asset | `ASSET` | Aborted, zero signatures formed |
+| Wrong amount | `AMOUNT` | Aborted, zero signatures formed |
+| Wrong scheme | `SCHEME` | Aborted, zero signatures formed |
+| payTo mismatch (402 vs catalog) | `PAYTO_MISMATCH` | Aborted before signing |
+| payer == payTo | `PAYER_EQUALS_PAYTO` | Aborted before signing |
+
+---
+
+## 9. Mirror Node Analysis
+
+The gateway reads real Hedera Testnet Mirror Node data:
+
+```
+GET https://testnet.mirrornode.hedera.com/api/v1/accounts/{accountId}
+GET https://testnet.mirrornode.hedera.com/api/v1/transactions?account.id={accountId}&limit=100&order=desc
+```
+
+The response includes:
+- **`scope`**: `"account-level on-chain risk"` — explicitly scoped
+- **`source`**: `"hedera-mirror-node"` — data provenance
+- **`observed`**: account existence, balance (tinybars + HBAR), token count,
+  30-day transaction count, HBAR in/out
+- **`derivedMetrics`**: net 30-day HBAR flow
+- **`freshnessHealth`**: `fresh`, `stale`, or `unknown`
+- **`unavailable`**: live pool APY, SaucerSwap data, Bonzo data, etc.
+- **`limitations`**: no protocol APY, no SaucerSwap, no Bonzo, no auto-fund
+- **No `riskScore` or `confidence`** — not invented
+
+---
+
+## 10. Monorepo Structure
+
+```
+strata402/
+├── apps/
+│   └── consuming-agent/          # CLI autonomous x402 payer
+├── packages/
+│   └── x402-sdk/                 # shared constants, catalog, request contract
+├── services/
+│   ├── api-gateway/              # Express gateway + x402 v2 + Mirror reads
+│   └── ai-engine/                # scaffold (Phase 8A: Verified DeFi Data)
+├── tests/
+│   ├── unit/                     # contract parsing, handler fixture tests
+│   └── integration/              # live gateway, Mirror, C1 full flow
+├── scripts/
+│   └── validate-workspaces.mjs
+├── .env.example
+├── package.json
+├── bun.lockb
+└── tsconfig.json
+```
+
+---
+
+## 11. Testing
+
+### Run all tests (unit + integration, no network)
+```bash
+bun test
+```
+
+### Run typecheck
+```bash
+bun run typecheck
+```
+
+### Run workspace validation
+```bash
+bun run validate
+```
+
+### Run live Mirror Node integration (read-only, no payment)
+```bash
+RUN_MIRROR_INTEGRATION=true bun test tests/integration/mirror-analysis.test.ts
+```
+
+### Run live Gateway integration (402 challenge, no payment)
+```bash
+RUN_GATEWAY_INTEGRATION=true bun test tests/integration/challenge-gateway.test.ts
+```
+
+---
+
+## 12. Verification on Hedera
+
+After a successful paid request, verify the transaction on HashScan:
+
+```
+https://hashscan.io/testnet/transaction/{transactionId}
+```
+
+The transaction shows:
+- Sender (payer) address
+- Receiver (service payTo) address
+- Amount in tinybars (1,000,000 = 0.01 HBAR)
+- Consensus timestamp
+- `SUCCESS` result
+
+---
+
+## 13. Environment Variables
+
+| Variable | Purpose | Default |
+| :--- | :--- | :--- |
+| `HEDERA_NETWORK` | Hedera network name | `testnet` |
+| `STRATA_NETWORK` | CAIP-2 network | `hedera:testnet` |
+| `HEDERA_MIRROR_NODE_URL` | Mirror node base URL | `https://testnet.mirrornode.hedera.com` |
+| `HEDERA_SERVICE_ACCOUNT_ID` | Service account / payTo | — |
+| `HEDERA_SERVICE_ACCOUNT_KEY` | Service account private key | — |
+| `X402_FACILITATOR_URL` | Blocky402 facilitator endpoint | `https://x402.org/facilitator` |
+| `X402_PRICE_TINYBARS` | Price per call in tinybars | `1000000` |
+| `X402_ASSET` | HBAR asset CAIP-2 ID | `0.0.0` |
+| `STRATA402_RISK_TOLERANCE` | Default risk tolerance for agent | `balanced` |
+| `STRATA402_ANALYSIS_AMOUNT_HBAR` | Default analysis amount (HBAR) | `1` |
+| `PORT` | Gateway listen port | `8080` |
+
+---
+
+## 14. Data Sources
+
+| Source | Status | Use |
+| :--- | :--- | :--- |
+| Hedera Mirror Node REST API | Live (read-only) | Account balance, recent transactions, token balances |
+| Blocky402 facilitator | Live (settlement) | x402 v2 `verify` + `settle` for HBAR exact payments |
+| SaucerSwap data | Not implemented | Deferred — labeled `unavailable` in responses |
+| Bonzo Finance data | Not implemented | Deferred — labeled `unavailable` in responses |
+| AI/LLM inference | Not implemented | Deferred — Phase 8A scope |
+
+---
+
+## 15. Security
+
+- **No secrets in code:** `.env` is gitignored; `.env.example` contains only
+  placeholders. Private keys are never printed, logged, or committed.
+- **`.env.example` hygiene:** paste only placeholders. Never commit real
+  account keys, even on testnet.
+- **Fail-closed by default:** wrong challenge fields → abort, zero spend.
+  Contract violation → HTTP 400 before any Mirror Node or payment call.
+- **Minimal privilege:** the service account key is only used for the x402
+  payment flow; Mirror Node reads require no authentication.
+
+---
+
+## 16. What Is NOT Claimed
+
+This project explicitly does **not** claim the following as working:
+
+- SaucerSwap or Bonzo Finance integration (adapters not built)
+- Live pool APY data
+- Automated fund movement or trading
+- Smart contract deployment
+- Any financial advice, price prediction, or guarantee of return
+- Any `riskScore` or `confidence` number — none are produced
+
+The `disclaimer` field in every response states: *"This information is not
+financial advice."*
+
+---
+
+## 17. Roadmap (Next After Phase 7A)
+
+| Phase | Description |
 | :--- | :--- |
-| `HEDERA_NETWORK` | Hedera network (`testnet`) |
-| `STRATA_NETWORK` | CAIP-2 network (`hedera:testnet`) |
-| `HEDERA_MIRROR_NODE_URL` | Mirror node endpoint |
-| `HEDERA_SERVICE_ACCOUNT_ID` | `payTo` for the exact scheme (must not be `0.0.0`) |
-| `HEDERA_SERVICE_ACCOUNT_KEY` | Service account operator key (dev placeholder) |
-| `X402_FACILITATOR_URL` | x402 facilitator (default `https://x402.org/facilitator`) |
-| `X402_PRICE_TINYBARS` | Price in tinybars (default `1000000`) |
-| `X402_ASSET` | HBAR asset id (default `0.0.0`) |
-| `PORT` | Gateway port (default `8080`) |
+| Phase 8A | **Verified DeFi Data Enrichment** — SaucerSwap/Bonzo adapters with data freshness metadata |
+| Phase 8B | AI Engine — LLM-narrated strategy explanation |
+| Phase 8C | HCS audit logging |
+| Phase 9 | Frontend dashboard (stretch goal) |
+| Phase 10 | Smart contracts — HederaYieldVault, AutoSwapLimit |
 
-## Commands
-
-```bash
-bun run validate     # workspaces OK
-bun run typecheck    # tsc --noEmit (strict)
-bun test             # unit + integration (13 pass / 0 fail)
-```
-
-The integration suite boots the real gateway and asserts a live `402` + `PAYMENT-REQUIRED` challenge,
-including base64 JSON decoding.
-
-## Not Yet Implemented (Roadmap — Phase 4 and beyond)
-
-These are **planned, not built**:
-
-- Consuming-agent payment flow (agent pays x402 + re-sends challenge)
-- AI engine + yield-risk computation (currently a `501` placeholder behind the payment wall)
-- Real end-to-end Hedera settlement (`PAYMENT-SIGNATURE` proof → verified → 200 response)
-- Smart contracts (e.g. limit orders), HCS audit topics, HCS-14 discovery
-- Frontend / dashboard
-- SaucerSwap / Bonzo Finance protocol modules
-
-Nothing above is claimed as working until it is implemented and verified on this repository.
-
-## Repository Conventions
-
-- **Primary dev environment:** Mac working copy
-- **Repository authority:** GitHub (`origin`)
-- **Shared conventions:** canonical x402 v2 headers only (`PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE` /
-  `PAYMENT-RESPONSE`) — the legacy v1 `X-402-Payment-Proof` header is explicitly not used.
-- Commit history on `main` (Phase 1–2) is stable at `69fbe53`; Phase 3 lives on
-  `phase-3-x402-middleware` pending review.
+---
 
 ## License
 

@@ -7,6 +7,7 @@ import {
 
 const RUN_GATEWAY_INTEGRATION = process.env.RUN_GATEWAY_INTEGRATION === "true";
 const SERVICE_URL = process.env.STRATA402_SERVICE_URL ?? DEFAULT_SERVICE_URL;
+const EXPECTED_PAYTO = process.env.HEDERA_SERVICE_ACCOUNT_ID ?? "0.0.10464194";
 
 const run = RUN_GATEWAY_INTEGRATION ? test : test.skip;
 
@@ -15,7 +16,7 @@ run("real discovery against the running local Gateway", async () => {
 
   expect(offer.network).toBe("hedera:testnet");
   expect(offer.currency).toBe("HBAR");
-  expect(offer.payTo).toBe("0.0.1234");
+  expect(offer.payTo).toBe(EXPECTED_PAYTO);
 
   expect(offer.service.id).toBe("yield-risk");
   expect(offer.service.priceTinybars).toBe(1_000_000);

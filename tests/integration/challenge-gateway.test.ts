@@ -11,6 +11,7 @@ import { ALLOWED_ASSET, ALLOWED_NETWORK, ALLOWED_PRICE_TINYBARS } from "@strata4
 
 const RUN_GATEWAY_INTEGRATION = process.env.RUN_GATEWAY_INTEGRATION === "true";
 const SERVICE_URL = process.env.STRATA402_SERVICE_URL ?? DEFAULT_SERVICE_URL;
+const EXPECTED_PAYTO = process.env.HEDERA_SERVICE_ACCOUNT_ID ?? "0.0.10464194";
 
 const run = RUN_GATEWAY_INTEGRATION ? test : test.skip;
 
@@ -36,4 +37,5 @@ run("real unpaid 402 challenge against the running local Gateway", async () => {
   expect(result.challenge.payTo).toBe("0.0.1234");
   expect(result.challenge.maxTimeoutSeconds).toBe(300);
   expect(result.challenge.feePayer).toBe("0.0.9185802");
+  expect(result.challenge.payTo).toBe(EXPECTED_PAYTO);
 });

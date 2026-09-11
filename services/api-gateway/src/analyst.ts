@@ -1,20 +1,33 @@
 /**
- * Limited Mirror-Node-based account analysis for the paid `/v1/strategy/yield-risk`
- * endpoint.
+ * Mirror-Node-based account analysis for the paid `/v1/strategy/yield-risk`
+ * endpoint (Phase 7A — hardened contract + explicit metadata).
  *
  * Honesty contract (approved scope):
  * - Only on-chain facts published by the Hedera Mirror Node are used.
  * - Protocol-specific claims (live pool APY, SaucerSwap/Bonzo liquidity, smart
- *   contract risk) are explicitly NOT made. Those appear in `unavailable`.
- * - Default analysis target is the service account (payTo) used as the x402
- *   payment recipient; an explicit `{ accountId }` body is honored.
+ *   contract risk) are explicitly NOT made; they appear in `unavailable` and
+ *   `limitations`. No `riskScore` / `confidence` numbers are invented.
+ * - The request body is validated against the shared yield-risk contract:
+ *   `accountId` (required, valid Hedera id), `riskTolerance`
+ *   (conservative | balanced | aggressive), `amountHbar` (positive, safe
+ *   precision). A malformed body is rejected with HTTP 400 BEFORE any mirror
+ *   read — no paid caller is charged for an invalid contract.
  * - If mirror reads fail, the response degrades to `dataUnavailable: true`
  *   with neutral indications — never fabricated numbers, never 200-with-fake.
  */
 
 import type { Request, Response } from "express";
-
-import { DEFAULT_NETWORK, serviceAccountFromEnv } from "@strata402/x402-sdk";
+import {
+  ANALYSIS_LIMITATIONS,
+  DEFAULT_ASSET,
+  DEFAULT_NETWORK,
+  DEFAULT_PRICE_TINYBARS,
+  DISCLAIMER,
+  TINYBARS_PER_HBAR,
+  parseYieldRiskContract,
+  type YieldRiskContract,
+  type YieldRiskContractIssue,
+} from "@strata402/x402-sdk";
 
 import {
   MirrorReadError,
@@ -22,9 +35,12 @@ import {
   type MirrorAccountRead,
 } from "./mirror";
 
-export const TINYBARS_PER_HBAR = 100_000_000n;
-
 export const ANALYSIS_SOURCE = "hedera-mirror-node";
+export const ANALYSIS_SCOPE = "account-level on-chain risk";
+export const SERVICE_NAME = "strata402-api-gateway";
+export const X402_PROTOCOL = "x402";
+export const DEFAULT_STALE_AFTER_SECONDS = 24 * 60 * 60;
+
 export const UNVAILABLE_FEATURES = [
   "live pool APY",
   "protocol liquidity",
@@ -33,173 +49,308 @@ export const UNVAILABLE_FEATURES = [
   "Bonzo data",
 ] as const;
 
-export interface MirrorAnalysisIndicators {
-  account: string;
-  exists: boolean;
-  deleted: boolean;
-  createdTimestamp: string | null;
-  balanceTinybars: string;
-  balanceHbar: string;
-  balanceTimestamp: string | null;
-  tokenBalancesCount: number;
+export interface YieldRiskObserved {
+  account: {
+    accountId: string;
+    exists: boolean;
+    deleted: boolean;
+    createdTimestamp: string | null;
+  };
+  balance: {
+    tinybars: string;
+    hbar: string;
+    timestamp: string | null;
+    tokenBalancesCount: number;
+  };
   recent30d: {
-    transactions: number;
+    transactionCount: number;
     hbarInTinybars: string;
     hbarOutTinybars: string;
     latestTimestamp: string | null;
   };
 }
 
-export interface MirrorAnalysisResult {
-  status: "ok";
-  analysisSource: typeof ANALYSIS_SOURCE;
-  network: string;
-  account: string;
-  dataFreshness: {
-    balanceTimestamp: string | null;
-    latestActivityTimestamp: string | null;
+export interface YieldRiskAnalysisSuccess {
+  status: "success";
+  service: typeof SERVICE_NAME;
+  request: YieldRiskContract;
+  analysis: {
+    scope: typeof ANALYSIS_SCOPE;
+    source: typeof ANALYSIS_SOURCE;
+    network: string;
+    dataTimestamp: string | null;
+    freshnessHealth: "fresh" | "stale" | "unknown";
+    freshness: {
+      balanceTimestamp: string | null;
+      latestActivityTimestamp: string | null;
+      ageSeconds: number | null;
+      staleAfterSeconds: number;
+    };
+    observed: YieldRiskObserved;
+    derivedMetrics: {
+      net30dTinybars: string;
+    };
+    unavailable: readonly string[];
+    limitations: readonly string[];
   };
-  scope: "account-level on-chain risk";
-  protocolAdapters: never[];
-  unavailable: readonly string[];
-  indicators: MirrorAnalysisIndicators;
+  payment: {
+    protocol: typeof X402_PROTOCOL;
+    version: 2;
+    network: string;
+    asset: typeof DEFAULT_ASSET;
+    amountTinybars: string;
+  };
+  disclaimer: typeof DISCLAIMER;
 }
 
-export interface MirrorAnalysisDegraded {
-  status: "ok";
-  analysisSource: typeof ANALYSIS_SOURCE;
-  network: string;
-  account: string;
-  scope: "account-level on-chain risk";
-  protocolAdapters: never[];
-  unavailable: readonly string[];
-  dataUnavailable: true;
-  indications: {
-    accountNotReadable: boolean;
-    reason: string;
+export interface YieldRiskAnalysisDegraded {
+  status: "success";
+  service: typeof SERVICE_NAME;
+  request: YieldRiskContract;
+  analysis: {
+    scope: typeof ANALYSIS_SCOPE;
+    source: typeof ANALYSIS_SOURCE;
+    network: string;
+    dataTimestamp: null;
+    dataUnavailable: true;
+    indications: {
+      accountNotReadable: boolean;
+      reason: string;
+    };
+    unavailable: readonly string[];
+    limitations: readonly string[];
   };
-  indicators: null;
+  payment: {
+    protocol: typeof X402_PROTOCOL;
+    version: 2;
+    network: string;
+    asset: typeof DEFAULT_ASSET;
+    amountTinybars: string;
+  };
+  disclaimer: typeof DISCLAIMER;
 }
 
-export type MirrorAnalysisResponse = MirrorAnalysisResult | MirrorAnalysisDegraded;
+export interface YieldRiskInvalidRequest {
+  status: "error";
+  code: "invalid_request_contract";
+  message: string;
+  issues: readonly string[];
+}
+
+export type YieldRiskAnalysisResponse =
+  | YieldRiskAnalysisSuccess
+  | YieldRiskAnalysisDegraded
+  | YieldRiskInvalidRequest;
+
+function paymentBlock(network: string): YieldRiskAnalysisSuccess["payment"] {
+  return {
+    protocol: X402_PROTOCOL,
+    version: 2 as const,
+    network,
+    asset: DEFAULT_ASSET,
+    amountTinybars: String(DEFAULT_PRICE_TINYBARS),
+  };
+}
 
 export function formatHbarFromTinybars(totalTinybars: bigint): string {
-  const whole = totalTinybars / TINYBARS_PER_HBAR;
-  const remainder = totalTinybars % TINYBARS_PER_HBAR;
-  return String(Number(whole) + Number(remainder) / Number(TINYBARS_PER_HBAR));
+  const perHbar = BigInt(TINYBARS_PER_HBAR);
+  const whole = totalTinybars / perHbar;
+  const remainder = totalTinybars % perHbar;
+  if (remainder === 0n) return whole.toString();
+  const fractional = String(Number(remainder) / TINYBARS_PER_HBAR)
+    .slice(2)
+    .padEnd(8, "0")
+    .replace(/0+$/, "");
+  return `${whole}.${fractional}`;
 }
 
-/** Derives the account to analyze: explicit body `accountId` else the service payTo account. */
-export function resolveAnalysisAccount(
-  body: unknown,
-  serviceAccountId: string = serviceAccountFromEnv(),
-): string {
-  if (typeof body === "object" && body !== null) {
-    const record = body as Record<string, unknown>;
-    const requested = record.accountId;
-    if (typeof requested === "string" && /^0\.0\.\d{1,19}$/.test(requested.trim())) {
-      return requested.trim();
-    }
+/** Newest of two `seconds.nanoseconds` mirror timestamps (or null). */
+function newestTimestamp(a: string | null, b: string | null): string | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return a >= b ? a : b;
+}
+
+function freshnessOf(
+  balanceTimestamp: string | null,
+  latestActivityTimestamp: string | null,
+  nowSeconds: number,
+  staleAfterSeconds: number,
+): { dataTimestamp: string | null; health: "fresh" | "stale" | "unknown"; ageSeconds: number | null } {
+  const dataTimestamp = newestTimestamp(balanceTimestamp, latestActivityTimestamp);
+  if (dataTimestamp === null) {
+    return { dataTimestamp: null, health: "unknown", ageSeconds: null };
   }
-  return serviceAccountId;
+  const [secText] = dataTimestamp.split(".");
+  const sec = Number(secText);
+  if (!Number.isFinite(sec)) {
+    return { dataTimestamp, health: "unknown", ageSeconds: null };
+  }
+  const ageSeconds = Math.max(0, nowSeconds - sec);
+  return {
+    dataTimestamp,
+    health: ageSeconds > staleAfterSeconds ? "stale" : "fresh",
+    ageSeconds,
+  };
 }
 
-/** Builds the honest analysis response for a healthy mirror read. */
-export function analyzeMirrorRead(
-  read: MirrorAccountRead,
-  network: string = DEFAULT_NETWORK,
-): MirrorAnalysisResult {
+function observedFromRead(read: MirrorAccountRead): YieldRiskObserved {
   const { accountState, recentActivity } = read;
-
-  const indicators: MirrorAnalysisIndicators = {
-    account: accountState.account,
-    exists: accountState.exists,
-    deleted: accountState.deleted,
-    createdTimestamp: accountState.createdTimestamp,
-    balanceTinybars: String(accountState.balanceTinybars),
-    balanceHbar: formatHbarFromTinybars(accountState.balanceTinybars),
-    balanceTimestamp: accountState.balanceTimestamp,
-    tokenBalancesCount: accountState.tokenBalancesCount,
+  return {
+    account: {
+      accountId: accountState.account,
+      exists: accountState.exists,
+      deleted: accountState.deleted,
+      createdTimestamp: accountState.createdTimestamp,
+    },
+    balance: {
+      tinybars: String(accountState.balanceTinybars),
+      hbar: formatHbarFromTinybars(accountState.balanceTinybars),
+      timestamp: accountState.balanceTimestamp,
+      tokenBalancesCount: accountState.tokenBalancesCount,
+    },
     recent30d: {
-      transactions: recentActivity.transactions30d,
+      transactionCount: recentActivity.transactions30d,
       hbarInTinybars: String(recentActivity.hbarInTinybars),
       hbarOutTinybars: String(recentActivity.hbarOutTinybars),
       latestTimestamp: recentActivity.latestConsensusTimestamp,
     },
   };
+}
+
+/** Builds the honest analysis response for a healthy mirror read. */
+export function analyzeMirrorRead(
+  read: MirrorAccountRead,
+  request: YieldRiskContract,
+  network: string = DEFAULT_NETWORK,
+  nowSeconds: number = Math.floor(Date.now() / 1000),
+  staleAfterSeconds: number = DEFAULT_STALE_AFTER_SECONDS,
+): YieldRiskAnalysisSuccess {
+  const observed = observedFromRead(read);
+  const freshness = freshnessOf(
+    observed.balance.timestamp,
+    observed.recent30d.latestTimestamp,
+    nowSeconds,
+    staleAfterSeconds,
+  );
 
   return {
-    status: "ok",
-    analysisSource: ANALYSIS_SOURCE,
-    network,
-    account: accountState.account,
-    dataFreshness: {
-      balanceTimestamp: accountState.balanceTimestamp,
-      latestActivityTimestamp: recentActivity.latestConsensusTimestamp,
+    status: "success",
+    service: SERVICE_NAME,
+    request,
+    analysis: {
+      scope: ANALYSIS_SCOPE,
+      source: ANALYSIS_SOURCE,
+      network,
+      dataTimestamp: freshness.dataTimestamp,
+      freshnessHealth: freshness.health,
+      freshness: {
+        balanceTimestamp: observed.balance.timestamp,
+        latestActivityTimestamp: observed.recent30d.latestTimestamp,
+        ageSeconds: freshness.ageSeconds,
+        staleAfterSeconds,
+      },
+      observed,
+      derivedMetrics: {
+        net30dTinybars: String(
+          read.recentActivity.hbarInTinybars - read.recentActivity.hbarOutTinybars,
+        ),
+      },
+      unavailable: [...UNVAILABLE_FEATURES],
+      limitations: [...ANALYSIS_LIMITATIONS],
     },
-    scope: "account-level on-chain risk",
-    protocolAdapters: [],
-    unavailable: [...UNVAILABLE_FEATURES],
-    indicators,
+    payment: paymentBlock(network),
+    disclaimer: DISCLAIMER,
   };
 }
 
 /** Degraded-but-honest response when mirror data cannot be read. */
-export function analyzeDegraded(account: string, error: unknown, network: string = DEFAULT_NETWORK): MirrorAnalysisDegraded {
+export function analyzeDegraded(
+  account: string,
+  error: unknown,
+  request: YieldRiskContract,
+  network: string = DEFAULT_NETWORK,
+): YieldRiskAnalysisDegraded {
   const reason =
     error instanceof MirrorReadError
       ? `mirror read failed (${error.code})`
       : `mirror read failed (${String(error)})`;
   return {
-    status: "ok",
-    analysisSource: ANALYSIS_SOURCE,
-    network,
-    account,
-    scope: "account-level on-chain risk",
-    protocolAdapters: [],
-    unavailable: [...UNVAILABLE_FEATURES],
-    dataUnavailable: true,
-    indications: { accountNotReadable: true, reason },
-    indicators: null,
+    status: "success",
+    service: SERVICE_NAME,
+    request,
+    analysis: {
+      scope: ANALYSIS_SCOPE,
+      source: ANALYSIS_SOURCE,
+      network,
+      dataTimestamp: null,
+      dataUnavailable: true,
+      indications: { accountNotReadable: true, reason },
+      unavailable: [...UNVAILABLE_FEATURES],
+      limitations: [...ANALYSIS_LIMITATIONS],
+    },
+    payment: paymentBlock(network),
+    disclaimer: DISCLAIMER,
+  };
+}
+
+/** HTTP 400 body for a request that violates the shared contract. */
+export function invalidYieldRiskContract(
+  issues: readonly YieldRiskContractIssue[],
+): YieldRiskInvalidRequest {
+  return {
+    status: "error",
+    code: "invalid_request_contract",
+    message: `Request does not satisfy the yield-risk contract: ${issues.join(", ")}`,
+    issues: [...issues],
   };
 }
 
 export interface YieldRiskHandlerDeps {
   mirrorBaseUrl: string;
-  serviceAccountId?: string;
   fetchFn?: typeof fetch;
   network?: string;
   windowSeconds?: number;
   nowSeconds?: number;
   limit?: number;
+  staleAfterSeconds?: number;
 }
 
 /**
  * Mountable Express handler for `POST /v1/strategy/yield-risk`.
  *
  * Runs AFTER the x402 payment middleware has verified+settled the request.
- * Reads real Hedera Mirror Node data, returns a 200 response that explicitly
- * bounds analysis to account-level on-chain risk.
+ * Validates the shared request contract first (400 on violation, before any
+ * mirror read), then reads real Hedera Mirror Node data and returns a response
+ * that explicitly bounds analysis to account-level on-chain risk.
  */
 export function createYieldRiskHandler(deps: YieldRiskHandlerDeps) {
-  const serviceAccountId = deps.serviceAccountId ?? serviceAccountFromEnv();
   const network = deps.network ?? DEFAULT_NETWORK;
+  const staleAfterSeconds = deps.staleAfterSeconds ?? DEFAULT_STALE_AFTER_SECONDS;
+  const nowSeconds = deps.nowSeconds ?? Math.floor(Date.now() / 1000);
 
   return async function yieldRiskHandler(req: Request, res: Response): Promise<void> {
-    const account = resolveAnalysisAccount(req.body, serviceAccountId);
+    const parsed = parseYieldRiskContract(req.body);
+    if (!parsed.ok) {
+      res.setHeader("Content-Type", "application/json");
+      res.status(400).json(invalidYieldRiskContract(parsed.issues));
+      return;
+    }
+    const request = parsed.contract;
+    const account = request.accountId;
 
     try {
       const read = await readMirrorAccountSnapshot(account, deps.mirrorBaseUrl, {
         fetchFn: deps.fetchFn,
         windowSeconds: deps.windowSeconds,
-        nowSeconds: deps.nowSeconds,
+        nowSeconds,
         limit: deps.limit,
       });
       res.setHeader("Content-Type", "application/json");
-      res.status(200).json(analyzeMirrorRead(read, network));
+      res.status(200).json(analyzeMirrorRead(read, request, network, nowSeconds, staleAfterSeconds));
     } catch (error) {
       res.setHeader("Content-Type", "application/json");
-      res.status(200).json(analyzeDegraded(account, error, network));
+      res.status(200).json(analyzeDegraded(account, error, request, network));
     }
   };
 }

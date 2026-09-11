@@ -73,6 +73,15 @@ export type {
 } from "./paid-request";
 export type { PaymentRequirements } from "@x402/core/types";
 export {
+  DEFAULT_ANALYSIS_AMOUNT_HBAR,
+  ENV_ANALYSIS_AMOUNT_HBAR,
+  ENV_RISK_TOLERANCE,
+  YieldRiskRequestError,
+  buildYieldRiskRequestBody,
+  supportedRiskTolerance,
+} from "./yield-risk-request";
+export type { YieldRiskRequestBodyOptions } from "./yield-risk-request";
+export {
   ENV_ALLOWED_PAYTO,
   ENV_FACILITATOR_URL,
   ENV_MIRROR_BASE_URL,

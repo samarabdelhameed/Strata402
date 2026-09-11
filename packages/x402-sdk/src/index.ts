@@ -48,6 +48,25 @@ export function serviceAccountFromEnv(): string {
   return process.env[ENV_SERVICE_ACCOUNT] ?? DEFAULT_SERVICE_ACCOUNT;
 }
 
+export {
+  ACCOUNT_ID_PATTERN,
+  ANALYSIS_LIMITATIONS,
+  ASSET_ID,
+  DEFAULT_RISK_TOLERANCE,
+  DISCLAIMER,
+  MAX_ANALYSIS_AMOUNT_HBAR,
+  RISK_TOLERANCE_VALUES,
+  TINYBARS_PER_HBAR,
+  isRiskTolerance,
+  parseYieldRiskContract,
+} from "./yield-risk-contract";
+export type {
+  RiskTolerance,
+  YieldRiskContract,
+  YieldRiskContractIssue,
+  YieldRiskParseResult,
+} from "./yield-risk-contract";
+
 export function buildServiceCatalog(
   overrides: ServiceCatalogOverrides = {},
 ): ServiceCatalog {

@@ -13,6 +13,7 @@ import {
   type SafetyConfig,
 } from "./config";
 import { SpendLedger } from "./spend-ledger";
+import { buildYieldRiskRequestBody } from "./yield-risk-request";
 import { parseAllowedPayTos } from "./preflight";
 import {
   ENV_FACILITATOR_URL,
@@ -539,6 +540,10 @@ export async function runC1(options: C1Options = {}): Promise<C1Report> {
     ledger,
     challenge,
     fetchFn: options.fetchFn ?? fetch,
+    body: buildYieldRiskRequestBody({
+      accountId: challenge.payTo,
+      env,
+    }),
   });
   await request.createPayload();
 

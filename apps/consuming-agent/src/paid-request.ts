@@ -100,6 +100,8 @@ export interface PaidRequestOptions extends ConstructPaymentPayloadOptions {
   challenge?: ValidatedChallenge;
   fetchFn?: ChallengeFetch;
   ledger?: SpendLedger;
+  /** JSON body sent with the paid request. Defaults to `{}`. */
+  body?: string;
 }
 
 const TERMINAL_PHASES: readonly PaidRequestPhase[] = ["settled", "settle_failed", "failed"];
@@ -287,7 +289,7 @@ export class PaidRequest {
           accept: "application/json",
           [PAYMENT_SIGNATURE_HEADER]: this.encodedHeader,
         },
-        body: "{}",
+        body: this.options.body ?? "{}",
       });
     } catch (cause) {
       this.finalize({
