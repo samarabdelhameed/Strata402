@@ -135,6 +135,12 @@ export interface C1Options {
   confirmed?: boolean;
   settlementAttempts?: number;
   settlementDelayMs?: number;
+  /**
+   * Optional override for the yield-risk request body sent with the paid
+   * request. When omitted, C1 keeps its verified default (analyze the payTo
+   * treasury account with env-driven tolerance/amount).
+   */
+  requestBody?: string;
 }
 
 export interface C1SummaryChecks {
@@ -420,7 +426,7 @@ function safeEvidence(request: PaidRequest): PaidRequestEvidence | null {
   }
 }
 
-function buildChecks(challenge: ValidatedChallenge): C1SummaryChecks {
+export function buildChecks(challenge: ValidatedChallenge): C1SummaryChecks {
   return {
     networkMatch: "PASS",
     schemeMatch: "PASS",
@@ -540,10 +546,12 @@ export async function runC1(options: C1Options = {}): Promise<C1Report> {
     ledger,
     challenge,
     fetchFn: options.fetchFn ?? fetch,
-    body: buildYieldRiskRequestBody({
-      accountId: challenge.payTo,
-      env,
-    }),
+    body:
+      options.requestBody ??
+      buildYieldRiskRequestBody({
+        accountId: challenge.payTo,
+        env,
+      }),
   });
   await request.createPayload();
 

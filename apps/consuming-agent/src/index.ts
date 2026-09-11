@@ -121,6 +121,28 @@ export {
 export type { MirrorFetch, MirrorReadErrorCode, PayerAccountRead } from "./payer-mirror";
 export { EXIT_MISCONFIG, EXIT_OK, EXIT_PREFLIGHT_FAILED, isC0Enabled, runCliC0 } from "./cli-c0";
 export {
+  ALLOWED_AMOUNT_TINYBARS,
+  ENV_C1_CONFIRM,
+  ENV_RUN_C1,
+  EXIT_AWAITING_CONFIRM,
+  EXIT_PAYMENT_FAILED,
+  buildChecks,
+  isC1Confirmed,
+  isC1Enabled,
+  runC1,
+} from "./cli-c1-paid";
+export type {
+  C1ErrorCode,
+  C1Fetch,
+  C1Options,
+  C1PaymentSummary,
+  C1Report,
+  C1SettlementEvidence,
+  C1Status,
+  C1SummaryChecks,
+  C1Traffic,
+} from "./cli-c1-paid";
+export {
   ENV_HCS_CREATE,
   buildHcsOperator,
   createHcsTopic,

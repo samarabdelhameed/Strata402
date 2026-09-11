@@ -6,7 +6,8 @@
   "type": "module",
   "main": "src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./yield-risk-request": "./src/yield-risk-request.ts"
   },
   "dependencies": {
     "@strata402/x402-sdk": "workspace:*",
