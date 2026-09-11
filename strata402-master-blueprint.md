@@ -32,14 +32,22 @@
 
 | Item | Status |
 | :--- | :--- |
-| AI engine / LLM narration (AI DeFi intelligence) | Not started — next (Phase 8A) |
-| SaucerSwap adapter | Not started (deferred, labeled `unavailable`) |
-| Bonzo Finance adapter | Not started (deferred, labeled `unavailable`) |
+| AI engine / LLM narration (AI DeFi intelligence) | Not started |
+| SaucerSwap adapter | Pending official API credentials + live source verification |
+| Bonzo Finance adapter | Deferred — no eligible live Testnet source verified on 2026-09-11 |
 | Smart contracts (HSCS) | Deferred — never blocks qualification |
 | HCS audit topics / HCS-14 discovery | Deferred (post-MVP) |
 | Frontend dashboard | Deferred (stretch) |
 | Mainnet | Out of scope |
 | Dynamic pricing / HTS payments | Stretch only |
+
+> **Phase 8A-0 source-eligibility note (verified 2026-09-11, read-only):**
+> - Bonzo Testnet data source unavailable at verification time (documented base URL returns
+>   `503`; the current official temporary base is Mainnet-only).
+> - Mainnet staging data is excluded from the Hedera Testnet analysis path.
+> - SaucerSwap pending official `x-api-key` credential and live source verification.
+> - Current analysis remains: **Mirror Node account-level risk only**. Adapters stay in
+>   `unavailable` until an eligible live source is proven.
 
 ---
 
@@ -883,15 +891,34 @@ Strictly sequential; each phase ends with tests + acceptance criteria, and the n
   placeholders hardened; leak removed; full diff + security scan performed; public txId documented.
 - **STOP for review — no commit/push yet.**
 
-### Phase 8A — Verified DeFi Data Enrichment (CURRENT)
-- Add SaucerSwap/Bonzo adapters with real `dataTimestamp`/`freshness` metadata, or explicit
-  availability, never fabricated numbers. Extend `unavailable` as facts change.
+### Phase 8A — Source Eligibility & Enrichment (DONE — decision recorded)
+- Verify eligible third-party data sources (Bonzo, SaucerSwap) read-only before any adapter.
+- Outcome (2026-09-11): **Bonzo deferred** (no eligible live Testnet source; Mainnet staging
+  excluded), **SaucerSwap pending** official `x-api-key` + live verification. No adapter written.
+  Honest controlled-unavailable retained. Extend `unavailable` as facts change.
 
-### Phase 8B — AI Engine
+### Phase 8B — Demo UX over the proven flow (CURRENT)
+- Simple presentation layer over the real MVP: service discovered → price/recipient verified →
+  payment settled → risk analysis returned → Hedera transaction verified.
+- Uses only existing real Mirror Node data, real transaction evidence, and the x402 flow.
+  No smart contracts, no Bonzo, no SaucerSwap.
+
+### Phase 8C — SaucerSwap Source Verification (+ adapter after a passing live probe)
+- Only when an official `x-api-key` is available: probe `test-api.saucerswap.finance`
+  `GET /v2/pools/full` read-only; verify network, pool identity, token metadata, liquidity,
+  amounts, fee tier, price fields, `timestamp`/freshness. Adapter only after the live probe
+  passes and schema is stable. Read-only (no swap/liquidity operations) in Phase 8A scope.
+
+### Phase 8D — Bonzo Re-check
+- Re-probe Bonzo only when: an eligible official live source exists, Testnet data is present
+  (or Mainnet eligibility is explicitly approved for a Mainnet-scoped analysis), operational
+  status holds, schema is stable, and freshness is verifiable.
+
+### Phase 8E — AI Engine
 - LLM-narrated strategy explanation over deterministic Mirror facts; deterministic fallback
   keeps the endpoint live even if the LLM is down.
 
-### Phase 8C — HCS audit logging + repo polish
+### Phase 8F — HCS audit logging + repo polish
 - Log paid request/response pairs to an HCS topic (request id, endpoint, status, tx id, block
   timestamp — never secrets or full transcripts). Publish repo, README polish, demo refresh.
 
