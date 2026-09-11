@@ -804,7 +804,9 @@ LLM_API_KEY=...placeholder...
 LLM_MODEL=...placeholder...
 
 # ===== Adapters (post-MVP, optional) =====
-SAUCERSWAP_API_URL=[VERIFY]
+# SaucerSwap official testnet API. Key must stay empty until an official key is granted.
+SAUCERSWAP_API_KEY=
+SAUCERSWAP_API_URL=https://test-api.saucerswap.finance
 BONZO_API_URL=[VERIFY]
 
 # ===== Local dev =====
@@ -904,10 +906,21 @@ Strictly sequential; each phase ends with tests + acceptance criteria, and the n
   No smart contracts, no Bonzo, no SaucerSwap.
 
 ### Phase 8C — SaucerSwap Source Verification (+ adapter after a passing live probe)
-- Only when an official `x-api-key` is available: probe `test-api.saucerswap.finance`
-  `GET /v2/pools/full` read-only; verify network, pool identity, token metadata, liquidity,
-  amounts, fee tier, price fields, `timestamp`/freshness. Adapter only after the live probe
-  passes and schema is stable. Read-only (no swap/liquidity operations) in Phase 8A scope.
+Only when an official `x-api-key` is available: probe `test-api.saucerswap.finance`
+`GET /v2/pools/full` read-only; verify network, pool identity, token metadata, liquidity,
+amounts, fee tier, price fields, `timestamp`/freshness. Adapter only after the live probe
+passes and schema is stable. Read-only (no swap/liquidity operations) in Phase 8A scope.
+
+SaucerSwap status (Phase 7, 2026-09-11):
+- Official testnet URL: `https://test-api.saucerswap.finance`
+- Endpoint: `GET /v2/pools/full`
+- Authentication: `x-api-key` header required
+- API key: not available
+- Live probe: not executed
+- Adapter: not implemented
+- Status: **PENDING**
+- Local env `SAUCERSWAP_API_KEY=` kept empty by design (no fake key, no unofficial
+  source, no request to a protected endpoint without a key).
 
 ### Phase 8D — Bonzo Re-check
 - Re-probe Bonzo only when: an eligible official live source exists, Testnet data is present
