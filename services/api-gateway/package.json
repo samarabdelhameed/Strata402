@@ -11,6 +11,7 @@
     "./x402": "./src/x402.ts",
     "./analyst": "./src/analyst.ts",
     "./mirror": "./src/mirror.ts",
+    "./payment-proof": "./src/payment-proof.ts",
     "./pages/demo": "./src/pages/demo.ts"
   },
   "scripts": {

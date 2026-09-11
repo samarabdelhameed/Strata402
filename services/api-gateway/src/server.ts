@@ -2,6 +2,7 @@ import express from "express";
 import { DEFAULT_NETWORK, buildServiceCatalog } from "@strata402/x402-sdk";
 import { buildX402Gateway, createPaymentMiddleware } from "./x402";
 import { createYieldRiskHandler } from "./analyst";
+import { verifyPaymentProof } from "./payment-proof";
 
 export const ENV_MIRROR_BASE_URL = "STRATA402_MIRROR_BASE_URL";
 export const DEFAULT_MIRROR_BASE_URL = "https://testnet.mirrornode.hedera.com";
@@ -37,6 +38,12 @@ export function buildApp(): express.Express {
       network: DEFAULT_NETWORK,
     }),
   );
+
+  app.get("/v1/payment-proof", async (_req, res) => {
+    res.type("json");
+    const proof = await verifyPaymentProof({ mirrorBaseUrl });
+    res.json(proof);
+  });
 
   return app;
 }

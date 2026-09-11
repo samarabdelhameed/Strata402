@@ -28,7 +28,7 @@ export class MirrorReadError extends Error {
   }
 }
 
-export type MirrorFetch = typeof fetch;
+export type MirrorFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 export interface MirrorAccountState {
   account: string;
@@ -93,6 +93,21 @@ function nonNegativeBigint(value: unknown, label: string): bigint {
 
 function maybeString(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
+function parseSignedBigint(value: unknown, label: string): bigint {
+  let raw: string;
+  if (typeof value === "string") {
+    raw = value.trim();
+  } else if (typeof value === "number") {
+    raw = String(value);
+  } else {
+    throw new MirrorReadError("UNREADABLE_FIELD", `${label} must be a string or number`);
+  }
+  if (raw === "" || !/^-?\d+$/.test(raw)) {
+    throw new MirrorReadError("UNREADABLE_FIELD", `${label} is not an integer`);
+  }
+  return BigInt(raw);
 }
 
 function parseAccount(raw: unknown, expectedAccount: string): MirrorAccountState {
@@ -272,4 +287,79 @@ export async function readMirrorAccountSnapshot(
   const accountState = await readMirrorAccount(accountId, mirrorBaseUrl, options.fetchFn);
   const recentActivity = await readMirrorRecentActivity(accountId, mirrorBaseUrl, options);
   return { accountState, recentActivity, mirrorBaseUrl };
+}
+
+export interface MirrorTransactionDetail {
+  transactionId: string;
+  result: string;
+  name: string;
+  consensusTimestamp: string | null;
+  transfers: MirrorTransferFact[];
+}
+
+function parseTransactionDetail(raw: unknown, expectedTransactionId: string): MirrorTransactionDetail {
+  const record = asRecord(raw, "Mirror node transaction");
+  const transactions = record.transactions;
+  if (!Array.isArray(transactions) || transactions.length === 0) {
+    throw new MirrorReadError("UNREADABLE_FIELD", "transactions.transactions must be a non-empty array");
+  }
+  for (const entry of transactions) {
+    const tx = asRecord(entry, "transaction entry");
+    const transactionId = maybeString(tx.transaction_id);
+    if (transactionId === null || transactionId !== expectedTransactionId) {
+      continue;
+    }
+    const result = maybeString(tx.result) ?? "UNKNOWN";
+    const name = maybeString(tx.name) ?? "UNKNOWN";
+    const consensusTimestamp = maybeString(tx.consensus_timestamp);
+    const transfers: MirrorTransferFact[] = [];
+    const transferEntries = tx.transfers;
+    if (Array.isArray(transferEntries)) {
+      for (const transferEntry of transferEntries) {
+        const transfer = asRecord(transferEntry, "transfer entry");
+        const account = maybeString(transfer.account);
+        if (account === null) {
+          continue;
+        }
+        let amount: bigint;
+        try {
+          amount = parseSignedBigint(transfer.amount as string | number, "transfer amount");
+        } catch {
+          continue;
+        }
+        transfers.push({ account, amountTinybars: amount });
+      }
+    }
+    return { transactionId, result, name, consensusTimestamp, transfers };
+  }
+  throw new MirrorReadError("ACCOUNT_NOT_FOUND", `Transaction ${expectedTransactionId} not found on mirror node`);
+}
+
+/** Read-only GET `/api/v1/transactions/{transactionId}`. Fails closed on any non-200 or missing match. */
+export async function readMirrorTransaction(
+  transactionId: string,
+  mirrorBaseUrl: string,
+  fetchFn: MirrorFetch = fetch,
+): Promise<MirrorTransactionDetail> {
+  const target = `${mirrorBaseUrl}${MIRROR_TRANSACTIONS_PATH}/${encodeURIComponent(transactionId)}`;
+
+  let res: Response;
+  try {
+    res = await fetchFn(target);
+  } catch (cause) {
+    throw new MirrorReadError("REQUEST_FAILED", `Mirror node transaction request failed: ${String(cause)}`);
+  }
+
+  if (res.status !== 200) {
+    throw new MirrorReadError("HTTP_STATUS", `Expected 200, got ${res.status}`);
+  }
+
+  const text = await res.text();
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new MirrorReadError("MALFORMED_JSON", "Mirror node transaction response is not valid JSON");
+  }
+  return parseTransactionDetail(raw, transactionId);
 }

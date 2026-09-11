@@ -51,6 +51,18 @@ button:hover{background:rgba(34,211,238,.22)}
     <button id="btn">Validation read-only</button>
   </div>
 
+  <h2 class="muted" style="margin-top:1.5rem;margin-bottom:.5rem">Previously Verified Payment Proof</h2>
+  <div class="grid" id="proofSection">
+    <section class="glass card"><h2>Status</h2><div class="val" id="proofStatus">...</div></section>
+    <section class="glass card"><h2>Payer</h2><div class="val" id="proofPayer">...</div></section>
+    <section class="glass card"><h2>Recipient</h2><div class="val" id="proofRecipient">...</div></section>
+    <section class="glass card"><h2>Amount</h2><div class="val" id="proofAmount">...</div><div class="muted" id="proofAmountSub"></div></section>
+  </div>
+  <div class="row">
+    <span class="muted" id="proofNote">Does not send a new payment. This is a previously verified Testnet payment proof, re-checked live against the Mirror Node.</span>
+    <a id="proofLink" class="pill ok" style="text-decoration:none;visibility:hidden" href="#" target="_blank">HashScan</a>
+  </div>
+
   <h2 class="muted" style="margin-top:1.5rem;margin-bottom:.5rem">Limitations</h2>
   <ul class="limitations glass">
     <li>Protocol APY: <b>UNAVAILABLE</b> (no live pool source)</li>
@@ -120,7 +132,35 @@ async function probe() {
 }
 
 document.getElementById("btn").addEventListener("click", probe);
+
+function showProof(entry) {
+  document.getElementById("proofStatus").textContent = entry.status;
+  document.getElementById("proofPayer").textContent = entry.payer || "...";
+  document.getElementById("proofRecipient").textContent = entry.payTo || "...";
+  document.getElementById("proofAmount").textContent = entry.amountTinybars ? (entry.amountTinybars + " tinybar") : "...";
+  document.getElementById("proofAmountSub").textContent =
+    entry.amountTinybars ? ("= " + (Number(entry.amountTinybars) / 100000000) + " HBAR") : "";
+  var link = document.getElementById("proofLink");
+  if (entry.status === "verified" && entry.hashscanUrl) {
+    link.href = entry.hashscanUrl;
+    link.style.visibility = "visible";
+  } else {
+    link.style.visibility = "hidden";
+  }
+}
+
+async function loadProof() {
+  try {
+    var r = await fetch("/v1/payment-proof");
+    var d = await r.json();
+    showProof(d);
+  } catch (e) {
+    showProof({ status: "unavailable", reason: String(e) });
+  }
+}
+
 probe();
+loadProof();
 </script>
 </body>
 </html>

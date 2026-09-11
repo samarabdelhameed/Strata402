@@ -31,6 +31,10 @@ test("GET /demo serves the real read-only HTML page", async () => {
   expect(html).toContain("fetch(\"/health\")");
   expect(html).toContain("fetch(\"/v1/services\")");
   expect(html).toContain("/v1/strategy/yield-risk");
+  expect(html).toContain("Previously Verified Payment Proof");
+  expect(html).toContain("fetch(\"/v1/payment-proof\")");
+  expect(html).toContain("Does not send a new payment");
+  expect(html).toContain("proofLink");
   expect(html).not.toContain("Authorization:");
   expect(html).not.toContain("PAYMENT-SIGNATURE:");
   expect(html).toContain("content-type");
