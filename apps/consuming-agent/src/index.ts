@@ -40,6 +40,7 @@ export {
   ENV_PAYER_PRIVATE_KEY,
   PaymentConstructorError,
   constructPaymentPayload,
+  parsePayerPrivateKey,
 } from "./payment-constructor";
 export type {
   ConstructPaymentPayloadOptions,
@@ -119,6 +120,14 @@ export {
 } from "./payer-mirror";
 export type { MirrorFetch, MirrorReadErrorCode, PayerAccountRead } from "./payer-mirror";
 export { EXIT_MISCONFIG, EXIT_OK, EXIT_PREFLIGHT_FAILED, isC0Enabled, runCliC0 } from "./cli-c0";
+export {
+  ENV_HCS_CREATE,
+  buildHcsOperator,
+  createHcsTopic,
+  isHcsCreateEnabled,
+  runCreateHcsTopic,
+} from "./create-hcs-topic";
+export type { CreateHcsTopicOptions, CreateTopicResult } from "./create-hcs-topic";
 export {
   DEFAULT_MAX_PER_REQUEST_TINYBARS,
   DEFAULT_MAX_TOTAL_BUDGET_TINYBARS,

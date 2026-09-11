@@ -1,6 +1,7 @@
 import { test, expect } from "bun:test";
 import {
   ANALYSIS_SOURCE,
+  buildNarrative,
   createYieldRiskHandler,
   invalidYieldRiskContract,
 } from "@strata402/api-gateway/analyst";
@@ -108,6 +109,48 @@ test("a valid contract produces a 200 with honest metadata and mirror facts", as
   expect("confidence" in analysis).toBe(false);
 });
 
+test("the response carries a deterministic narrative from real facts only", async () => {
+  const { fetchFn, calls } = mirrorFixtureFetch({
+    balanceTinybars: "1500000000",
+    balanceTimestamp: FRESH_REMOTE,
+    latestTimestamp: FRESH_REMOTE,
+  })();
+  const handler = boot(fetchFn);
+  const { status, payload } = await run(handler, VALID_BODY);
+
+  expect(status).toBe(200);
+  const analysis = payload!.analysis as Record<string, unknown>;
+  const narrative = analysis.narrative as Record<string, unknown>;
+  expect(narrative.generatedBy).toBe("deterministic");
+  expect(narrative.llm).toBe(false);
+  expect(Array.isArray(narrative.points)).toBe(true);
+  const joined = (narrative.points as string[]).join("\n");
+  expect(joined).toContain(ACCOUNT);
+  expect(joined).toContain("15 HBAR");
+  expect(joined).toContain("fresh");
+  expect(String(narrative.summary)).toContain("No LLM involved");
+  expect(calls()).toBe(2);
+});
+
+test("narrative avoids fabricated numbers beyond the supplied facts", () => {
+  const narrative = buildNarrative(
+    {
+      account: { accountId: "0.0.7777", exists: true, deleted: false, createdTimestamp: "1500000000.000000000" },
+      balance: { tinybars: "1000000", hbar: "0.01", timestamp: "2000000000.000000000", tokenBalancesCount: 0 },
+      recent30d: {
+        transactionCount: 1,
+        hbarInTinybars: "1000000",
+        hbarOutTinybars: "0",
+        latestTimestamp: "2000000000.000000000",
+      },
+    },
+    { net30dTinybars: "1000000" },
+    "fresh",
+  );
+  expect(narrative.points.join("\n")).toContain("0.01 HBAR");
+  expect(narrative.points.join("\n")).toContain("net 0.01 HBAR");
+});
+
 test("contract violations are rejected with HTTP 400 before any mirror read", async () => {
   const badBodies: Array<Record<string, unknown>> = [
     {},
@@ -142,6 +185,10 @@ test("mirror-unavailable degrades to a controlled dataUnavailable response, neve
   const indications = analysis.indications as Record<string, unknown>;
   expect(indications.accountNotReadable).toBe(true);
   expect(String(indications.reason)).toContain("mirror read failed");
+  const narrative = analysis.narrative as Record<string, unknown>;
+  expect(narrative.generatedBy).toBe("deterministic");
+  expect(narrative.llm).toBe(false);
+  expect(String(narrative.summary)).toContain("no account facts");
   expect(payload!.disclaimer).toBeTruthy();
   expect(calls()).toBe(1);
 });
@@ -176,4 +223,136 @@ test("mirror client still fails closed on a non-200 account read", async () => {
   await expect(
     readMirrorAccountSnapshot(ACCOUNT, "https://mirror.test", { fetchFn }),
   ).rejects.toThrow(MirrorReadError);
+});
+
+test("audit hook receives a 200 paid event with a requestId and endpoint", async () => {
+  const { fetchFn } = mirrorFixtureFetch({})();
+  const events: Array<Record<string, unknown>> = [];
+  const handler = createYieldRiskHandler({
+    mirrorBaseUrl: "https://mirror.test",
+    fetchFn,
+    auditHcs: async (event) => {
+      events.push(event as unknown as Record<string, unknown>);
+      return undefined;
+    },
+  });
+
+  const { status } = await run(handler, VALID_BODY);
+  expect(status).toBe(200);
+  expect(events).toHaveLength(1);
+  expect(events[0]!.endpoint).toBe("/v1/strategy/yield-risk");
+  expect(events[0]!.status).toBe("200");
+  expect(typeof events[0]!.requestId).toBe("string");
+  expect(String(events[0]!.requestId)).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  );
+});
+
+test("audit hook is not invoked for rejected (400) contracts", async () => {
+  const { fetchFn } = mirrorFixtureFetch({})();
+  const events: Array<Record<string, unknown>> = [];
+  const handler = createYieldRiskHandler({
+    mirrorBaseUrl: "https://mirror.test",
+    fetchFn,
+    auditHcs: async (event) => {
+      events.push(event as unknown as Record<string, unknown>);
+      return undefined;
+    },
+  });
+
+  const { status } = await run(handler, {});
+  expect(status).toBe(400);
+  expect(events).toHaveLength(0);
+});
+
+test("audit hook failure never fails the paid 200 response (fail-open)", async () => {
+  const { fetchFn } = mirrorFixtureFetch({})();
+  const handler = createYieldRiskHandler({
+    mirrorBaseUrl: "https://mirror.test",
+    fetchFn,
+    auditHcs: async () => {
+      throw new Error("HCS topic unreachable");
+    },
+  });
+
+  const { status, payload } = await run(handler, VALID_BODY);
+  expect(status).toBe(200);
+  expect(payload!.status).toBe("success");
+});
+
+test("disabled ai engine falls back to in-process deterministic analysis", async () => {
+  const { fetchFn, calls } = mirrorFixtureFetch({})();
+  const handler = createYieldRiskHandler({
+    mirrorBaseUrl: "https://mirror.test",
+    fetchFn,
+    aiEngine: { enabled: false, callYieldRisk: async () => ({ url: "", status: 0, ok: false, body: null }) },
+  });
+
+  const { status, payload } = await run(handler, VALID_BODY);
+  expect(status).toBe(200);
+  const analysis = payload!.analysis as Record<string, unknown>;
+  expect(analysis.source).toBe(ANALYSIS_SOURCE);
+  expect(calls()).toBe(2);
+});
+
+test("unreachable ai engine falls back to in-process deterministic analysis", async () => {
+  const { fetchFn, calls } = mirrorFixtureFetch({})();
+  const handler = createYieldRiskHandler({
+    mirrorBaseUrl: "https://mirror.test",
+    fetchFn,
+    aiEngine: {
+      enabled: true,
+      callYieldRisk: async () => ({ url: "http://localhost:8000", status: 0, ok: false, body: null }),
+    },
+  });
+
+  const { status, payload } = await run(handler, VALID_BODY);
+  expect(status).toBe(200);
+  const analysis = payload!.analysis as Record<string, unknown>;
+  expect(analysis.source).toBe(ANALYSIS_SOURCE);
+  expect(calls()).toBe(2);
+});
+
+test("engine-produced success response is passed through verbatim", async () => {
+  const { fetchFn, calls } = mirrorFixtureFetch({})();
+  const engineBody = {
+    status: "success",
+    service: "strata402-ai-engine",
+    request: VALID_BODY,
+    analysis: { scope: "account-level on-chain risk", source: "hedera-mirror-node", narrative: { generatedBy: "deterministic", llm: false }, unavailable: [], limitations: [] },
+    payment: { protocol: "x402", version: 2, network: "hedera:testnet", asset: "0.0.0", amountTinybars: "1000000" },
+    disclaimer: "Not financial advice.",
+  };
+  const handler = createYieldRiskHandler({
+    mirrorBaseUrl: "https://mirror.test",
+    fetchFn,
+    aiEngine: {
+      enabled: true,
+      callYieldRisk: async () => ({ url: "http://localhost:8000", status: 200, ok: true, body: engineBody }),
+    },
+  });
+
+  const { status, payload } = await run(handler, VALID_BODY);
+  expect(status).toBe(200);
+  expect(payload!.status).toBe("success");
+  expect(payload!.service).toBe("strata402-ai-engine");
+  expect(calls()).toBe(0);
+});
+
+test("malformed engine response falls back to in-process deterministic analysis", async () => {
+  const { fetchFn, calls } = mirrorFixtureFetch({})();
+  const handler = createYieldRiskHandler({
+    mirrorBaseUrl: "https://mirror.test",
+    fetchFn,
+    aiEngine: {
+      enabled: true,
+      callYieldRisk: async () => ({ url: "http://localhost:8000", status: 200, ok: true, body: { status: "boom" } }),
+    },
+  });
+
+  const { status, payload } = await run(handler, VALID_BODY);
+  expect(status).toBe(200);
+  const analysis = payload!.analysis as Record<string, unknown>;
+  expect(analysis.source).toBe(ANALYSIS_SOURCE);
+  expect(calls()).toBe(2);
 });

@@ -3,6 +3,8 @@ import { DEFAULT_NETWORK, buildServiceCatalog } from "@strata402/x402-sdk";
 import { buildX402Gateway, createPaymentMiddleware } from "./x402";
 import { createYieldRiskHandler } from "./analyst";
 import { verifyPaymentProof } from "./payment-proof";
+import { isHcsAuditConfigured, publishAuditEvent } from "./hcs-audit";
+import { ENV_AI_ENGINE_URL, createAiEngineClient } from "./ai-engine-client";
 
 export const ENV_MIRROR_BASE_URL = "STRATA402_MIRROR_BASE_URL";
 export const DEFAULT_MIRROR_BASE_URL = "https://testnet.mirrornode.hedera.com";
@@ -31,11 +33,15 @@ export function buildApp(): express.Express {
     res.json(buildServiceCatalog());
   });
 
+  const aiEngineUrl = process.env[ENV_AI_ENGINE_URL]?.trim() ?? "";
+
   app.post(
     "/v1/strategy/yield-risk",
     createYieldRiskHandler({
       mirrorBaseUrl,
       network: DEFAULT_NETWORK,
+      auditHcs: isHcsAuditConfigured() ? publishAuditEvent : undefined,
+      aiEngine: createAiEngineClient(aiEngineUrl),
     }),
   );
 

@@ -34,6 +34,10 @@ import {
   readMirrorAccountSnapshot,
   type MirrorAccountRead,
 } from "./mirror";
+import {
+  isValidAiEngineResponse,
+  type AiEngineCall,
+} from "./ai-engine-client";
 
 export const ANALYSIS_SOURCE = "hedera-mirror-node";
 export const ANALYSIS_SCOPE = "account-level on-chain risk";
@@ -70,6 +74,18 @@ export interface YieldRiskObserved {
   };
 }
 
+/**
+ * Deterministic, human-readable account summary. Generated only from the real
+ * Mirror Node facts already present in the response — no LLM, no interpolated
+ * user input, and never a fabricated number.
+ */
+export interface YieldRiskNarrative {
+  generatedBy: "deterministic";
+  llm: false;
+  summary: string;
+  points: string[];
+}
+
 export interface YieldRiskAnalysisSuccess {
   status: "success";
   service: typeof SERVICE_NAME;
@@ -90,6 +106,7 @@ export interface YieldRiskAnalysisSuccess {
     derivedMetrics: {
       net30dTinybars: string;
     };
+    narrative: YieldRiskNarrative;
     unavailable: readonly string[];
     limitations: readonly string[];
   };
@@ -117,6 +134,7 @@ export interface YieldRiskAnalysisDegraded {
       accountNotReadable: boolean;
       reason: string;
     };
+    narrative: YieldRiskNarrative;
     unavailable: readonly string[];
     limitations: readonly string[];
   };
@@ -218,6 +236,44 @@ function observedFromRead(read: MirrorAccountRead): YieldRiskObserved {
   };
 }
 
+/**
+ * Deterministic account narrative from real Mirror facts. Every value in the
+ * returned strings comes from the observed/derived fields passed in. There is
+ * no LLM and no interpolated user input; the summary mirrors what the paid
+ * caller can already verify in the same JSON.
+ */
+export function buildNarrative(
+  observed: YieldRiskObserved,
+  derivedMetrics: { net30dTinybars: string },
+  freshnessHealth: "fresh" | "stale" | "unknown",
+): YieldRiskNarrative {
+  const balanceHbar = observed.balance.hbar;
+  const netHbar = formatHbarFromTinybars(BigInt(derivedMetrics.net30dTinybars));
+  const points = [
+    `Account ${observed.account.accountId} exists on the Hedera Testnet Mirror Node (created ${observed.account.createdTimestamp ?? "unknown"}).`,
+    `Balance: ${balanceHbar} HBAR (${observed.balance.tinybars} tinybars) at ${observed.balance.timestamp ?? "unknown"}.`,
+    `Last 30 days: ${observed.recent30d.transactionCount} transaction(s), ${formatHbarFromTinybars(BigInt(observed.recent30d.hbarInTinybars))} HBAR in, ${formatHbarFromTinybars(BigInt(observed.recent30d.hbarOutTinybars))} HBAR out, net ${netHbar} HBAR.`,
+    `Freshness: ${freshnessHealth}.`,
+  ];
+
+  return {
+    generatedBy: "deterministic",
+    llm: false,
+    summary: `Deterministic account-level summary for ${observed.account.accountId} from Hedera Mirror Node data (${ANALYSIS_SOURCE}). No LLM involved.`,
+    points,
+  };
+}
+
+export function buildDegradedNarrative(reason: string): YieldRiskNarrative {
+  return {
+    generatedBy: "deterministic",
+    llm: false,
+    summary:
+      "Mirror Node data is currently unavailable; no account facts or indicators are claimed from a live read.",
+    points: [`Mirror read failed: ${reason}.`],
+  };
+}
+
 /** Builds the honest analysis response for a healthy mirror read. */
 export function analyzeMirrorRead(
   read: MirrorAccountRead,
@@ -232,6 +288,9 @@ export function analyzeMirrorRead(
     observed.recent30d.latestTimestamp,
     nowSeconds,
     staleAfterSeconds,
+  );
+  const net30dTinybars = String(
+    read.recentActivity.hbarInTinybars - read.recentActivity.hbarOutTinybars,
   );
 
   return {
@@ -252,10 +311,9 @@ export function analyzeMirrorRead(
       },
       observed,
       derivedMetrics: {
-        net30dTinybars: String(
-          read.recentActivity.hbarInTinybars - read.recentActivity.hbarOutTinybars,
-        ),
+        net30dTinybars,
       },
+      narrative: buildNarrative(observed, { net30dTinybars }, freshness.health),
       unavailable: [...UNVAILABLE_FEATURES],
       limitations: [...ANALYSIS_LIMITATIONS],
     },
@@ -286,6 +344,7 @@ export function analyzeDegraded(
       dataTimestamp: null,
       dataUnavailable: true,
       indications: { accountNotReadable: true, reason },
+      narrative: buildDegradedNarrative(reason),
       unavailable: [...UNVAILABLE_FEATURES],
       limitations: [...ANALYSIS_LIMITATIONS],
     },
@@ -314,6 +373,19 @@ export interface YieldRiskHandlerDeps {
   nowSeconds?: number;
   limit?: number;
   staleAfterSeconds?: number;
+  auditHcs?: (event: YieldRiskAuditInput) => Promise<unknown>;
+  aiEngine?: {
+    enabled: boolean;
+    callYieldRisk(requestBody: unknown): Promise<AiEngineCall>;
+  };
+}
+
+export interface YieldRiskAuditInput {
+  requestId: string;
+  endpoint: string;
+  status: string;
+  paymentTxId?: string | null;
+  blockTimestamp?: string | null;
 }
 
 /**
@@ -330,6 +402,17 @@ export function createYieldRiskHandler(deps: YieldRiskHandlerDeps) {
   const nowSeconds = deps.nowSeconds ?? Math.floor(Date.now() / 1000);
 
   return async function yieldRiskHandler(req: Request, res: Response): Promise<void> {
+    const requestId = crypto.randomUUID();
+    const endpoint = "/v1/strategy/yield-risk";
+
+    const fireAudit = (status: string): void => {
+      if (deps.auditHcs === undefined) return;
+      if (status !== "200") return;
+      void deps
+        .auditHcs({ requestId, endpoint, status })
+        .catch(() => undefined);
+    };
+
     const parsed = parseYieldRiskContract(req.body);
     if (!parsed.ok) {
       res.setHeader("Content-Type", "application/json");
@@ -339,6 +422,14 @@ export function createYieldRiskHandler(deps: YieldRiskHandlerDeps) {
     const request = parsed.contract;
     const account = request.accountId;
 
+    const engineResponse = await tryAiEngine(deps, req.body);
+    if (engineResponse !== null) {
+      fireAudit("200");
+      res.setHeader("Content-Type", "application/json");
+      res.status(200).json(engineResponse);
+      return;
+    }
+
     try {
       const read = await readMirrorAccountSnapshot(account, deps.mirrorBaseUrl, {
         fetchFn: deps.fetchFn,
@@ -346,11 +437,36 @@ export function createYieldRiskHandler(deps: YieldRiskHandlerDeps) {
         nowSeconds,
         limit: deps.limit,
       });
+      fireAudit("200");
       res.setHeader("Content-Type", "application/json");
       res.status(200).json(analyzeMirrorRead(read, request, network, nowSeconds, staleAfterSeconds));
     } catch (error) {
+      fireAudit("200");
       res.setHeader("Content-Type", "application/json");
       res.status(200).json(analyzeDegraded(account, error, request, network));
     }
   };
+}
+
+/**
+ * Consults the delegated Python ai-engine when enabled. Returns a passthrough
+ * body on success, or `null` so the handler falls back to its own in-process
+ * deterministic analysis. Must never throw and must never fabricate data.
+ */
+async function tryAiEngine(
+  deps: YieldRiskHandlerDeps,
+  requestBody: unknown,
+): Promise<Record<string, unknown> | null> {
+  if (deps.aiEngine === undefined || !deps.aiEngine.enabled) {
+    return null;
+  }
+  try {
+    const call = await deps.aiEngine.callYieldRisk(requestBody);
+    if (!call.ok || !isValidAiEngineResponse(call.body)) {
+      return null;
+    }
+    return call.body as Record<string, unknown>;
+  } catch {
+    return null;
+  }
 }

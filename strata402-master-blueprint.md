@@ -928,12 +928,38 @@ SaucerSwap status (Phase 7, 2026-09-11):
   status holds, schema is stable, and freshness is verifiable.
 
 ### Phase 8E — AI Engine
-- LLM-narrated strategy explanation over deterministic Mirror facts; deterministic fallback
-  keeps the endpoint live even if the LLM is down.
+- Deterministic risk engine as a real Python FastAPI service (`services/ai-engine`): mirrors the
+  gateway's yield-risk contract exactly (validates amountHbar precision before any mirror read,
+  400 `invalid_request_contract`), reads real Mirror Node facts (account existence, 30-day Hbar
+  throughput) read-only, builds a deterministic narrative only from those facts, degrades honestly
+  on mirror failure (`dataUnavailable`), and NEVER fabricates riskScore/confidence numbers.
+- LLM narration is a hook disabled unless `LLM_PROVIDER`/`LLM_MODEL`/`LLM_API_KEY` are all set;
+  the deterministic path never depends on it.
+- Gateway integration (`services/api-gateway/src/ai-engine-client.ts`): delegate the paid
+  yield-risk analysis to the engine when `AI_ENGINE_URL` is set; on any failure (disabled,
+  unreachable, non-200, or structurally mislabeled response) the gateway falls back to its own
+  in-process deterministic analysis — the paid endpoint never depends on the engine.
+- Status: **DONE** — 12 pytest tests green (`services/ai-engine`), engine verified live on
+  `:8000` (`/health` + real mirror-backed analysis + 400 contract violations), gateway delegation
+  unit tests green (verbatim passthrough + 3 fallback paths).
 
 ### Phase 8F — HCS audit logging + repo polish
-- Log paid request/response pairs to an HCS topic (request id, endpoint, status, tx id, block
-  timestamp — never secrets or full transcripts). Publish repo, README polish, demo refresh.
+- `packages/x402-sdk/src/hcs-audit.ts` — `buildHcsAuditEvent` / `serializeHcsAuditEvent` /
+  `parseHcsAuditEvent`; never logs secrets or full transcripts, only request id, endpoint, status.
+- Topic `0.0.10483725` created live on testnet (payer `0.0.10329902`, consensus
+  `1789157095.612518567`, memo "Strata402 paid-request audit (phase 8f)"); verified independently
+  via mirror fetch. `HCS_AUDIT_TOPIC_ID=0.0.10483725` in `.env` / `.env.example`.
+- Publisher (`services/api-gateway/src/hcs-audit.ts`) is fully fail-open: it returns a state object
+  and never throws; mirror verification via topic sequence before/after; `TopicId.fromString`
+  (protobuf `ITopicID`) — `AccountId.fromString` produced a fake `SUCCESS`/`INVALID_TOPIC_ID`.
+- Wired into `server.ts` → `analyst.ts`; a paid 200 fires `fireAudit("200")` before responding;
+  400s and audit failures never fail the paid response.
+- Live audit messages: seq 3 + seq 4 on `0.0.10483725` from a real paid request.
+- Status: **DONE**.
+
+### Phase 8G — (registry slots for future work)
+- SaucerSwap adapter and Bonzo remain **PENDING** (blocked by official key / qualified Testnet
+  source, per Phase 8C Pre-gate).
 
 ---
 
@@ -1029,21 +1055,22 @@ SaucerSwap status (Phase 7, 2026-09-11):
 ## ✅ Phase 1 Acceptance Checklist (STOP after this)
 
 Before Phase 2, all items below must be true — then stop and wait for explicit approval.
+(Historical gate — Phase 1 completed and committed; marks below reflect the verified repo state.)
 
-- [ ] `strata402/` repo directory initialized as a Bun monorepo.
-- [ ] Root `package.json` exists, `"private": true`, workspaces = `apps/*`, `services/*`, `packages/*`.
-- [ ] `bunfig.toml` exists.
-- [ ] `strata402/.gitignore` exists (node_modules, `.env*`, dist, logs).
-- [ ] `strata402/.env.example` exists with placeholder values only — no real keys.
-- [ ] Minimal `strata402/README.md` documents bootstrap + how to run `bun validate` / `bun test`.
-- [ ] Initial workspace directories exist: `apps/`, `services/`, `contracts/`, `packages/x402-sdk/`, `scripts/`, `tests/{unit,integration,x402,e2e}/`, `docs/`.
-- [ ] x402 packages pinned to exact versions: `@x402/core`, `@x402/hedera`, `@x402/fetch`, `@x402/express`.
-- [ ] Hedera SDK resolved once (no duplicate installs) — `bun why @hiero-ledger/sdk` confirmed.
-- [ ] SDK probe test (`tests/unit/x402-sdk-probe.test.ts`) passes and records the canonical headers emitted/accepted by the pinned versions (`x402Version: 2`).
-- [ ] `bun install` completes cleanly.
-- [ ] A workspace validation test passes (`bun test`).
-- [ ] Bun ≥ v1.1 and Node version recorded (`bun --version`, `node --version`).
-- [ ] No x402 payment flow, gateway logic, AI engine, contracts, or agent payment logic written in Phase 1 (probe test is verification only).
-- [ ] Git initialized (if not already) and Phase 1 committed.
+- [x] `strata402/` repo directory initialized as a Bun monorepo.
+- [x] Root `package.json` exists, `"private": true`, workspaces = `apps/*`, `services/*`, `packages/*`.
+- [x] `bunfig.toml` exists.
+- [x] `strata402/.gitignore` exists (node_modules, `.env*`, dist, logs).
+- [x] `strata402/.env.example` exists with placeholder values only — no real keys.
+- [x] Minimal `strata402/README.md` documents bootstrap + how to run `bun validate` / `bun test`.
+- [x] Initial workspace directories exist: `apps/`, `services/`, `contracts/`, `packages/x402-sdk/`, `scripts/`, `tests/{unit,integration,x402,e2e}/`, `docs/`.
+- [x] x402 packages pinned to exact versions: `@x402/core`, `@x402/hedera`, `@x402/fetch`, `@x402/express`.
+- [x] Hedera SDK resolved once (no duplicate installs) — `bun why @hiero-ledger/sdk` confirmed.
+- [x] SDK probe test (`tests/unit/x402-sdk-probe.test.ts`) passes and records the canonical headers emitted/accepted by the pinned versions (`x402Version: 2`).
+- [x] `bun install` completes cleanly.
+- [x] A workspace validation test passes (`bun test`).
+- [x] Bun ≥ v1.1 and Node version recorded (`bun --version`, `node --version`).
+- [x] No x402 payment flow, gateway logic, AI engine, contracts, or agent payment logic written in Phase 1 (probe test is verification only).
+- [x] Git initialized (if not already) and Phase 1 committed.
 
 > **Post-approval note:** proceed to Phase 2 only after this checklist is acknowledged.

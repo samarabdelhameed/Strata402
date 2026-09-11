@@ -12,12 +12,15 @@
     "./analyst": "./src/analyst.ts",
     "./mirror": "./src/mirror.ts",
     "./payment-proof": "./src/payment-proof.ts",
-    "./pages/demo": "./src/pages/demo.ts"
+    "./hcs-audit": "./src/hcs-audit.ts",
+    "./pages/demo": "./src/pages/demo.ts",
+    "./ai-engine-client": "./src/ai-engine-client.ts"
   },
   "scripts": {
     "dev": "bun run src/index.ts"
   },
   "dependencies": {
+    "@hiero-ledger/sdk": "2.85.0",
     "@strata402/x402-sdk": "workspace:*",
     "@x402/core": "2.25.0",
     "@x402/express": "2.25.0",

@@ -78,7 +78,7 @@ function keyTypeOf(key: PrivateKey): PayerKeyType {
   return key.type === "ED25519" ? "ED25519" : "ECDSA_SECP256K1";
 }
 
-function parsePayerPrivateKey(raw: string): { key: PrivateKey; keyType: PayerKeyType } {
+export function parsePayerPrivateKey(raw: string): { key: PrivateKey; keyType: PayerKeyType } {
   const value = raw.trim();
   if (value === "") {
     throw new PaymentConstructorError("CREDENTIALS_MISSING", `${ENV_PAYER_PRIVATE_KEY} is empty`);

@@ -66,6 +66,13 @@ export type {
   YieldRiskContractIssue,
   YieldRiskParseResult,
 } from "./yield-risk-contract";
+export {
+  ENV_HCS_AUDIT_TOPIC_ID,
+  buildHcsAuditEvent,
+  parseHcsAuditEvent,
+  serializeHcsAuditEvent,
+} from "./hcs-audit";
+export type { HcsAuditBuildOptions, HcsAuditEvent } from "./hcs-audit";
 
 export function buildServiceCatalog(
   overrides: ServiceCatalogOverrides = {},
