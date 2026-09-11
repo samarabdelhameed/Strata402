@@ -1048,6 +1048,7 @@ SaucerSwap status (Phase 7, 2026-09-11):
 - [x] Real testnet tx ID recorded in integration output.
 - [x] Public GitHub repo; secrets clean; `.env.example` placeholder-only.
 - [x] Professional root README done.
+- [x] Live end-to-end via delegated engine (C1 → gateway → ai-engine → HCS seq 5, settlement mirror-verified).
 - [ ] Demo video ≤ 5 min recorded (remaining for submission).
 
 ---
