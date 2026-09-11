@@ -1,6 +1,10 @@
 import express from "express";
 import { DEFAULT_NETWORK, buildServiceCatalog } from "@strata402/x402-sdk";
 import { buildX402Gateway, createPaymentMiddleware } from "./x402";
+import { createYieldRiskHandler } from "./analyst";
+
+export const ENV_MIRROR_BASE_URL = "STRATA402_MIRROR_BASE_URL";
+export const DEFAULT_MIRROR_BASE_URL = "https://testnet.mirrornode.hedera.com";
 
 export function buildApp(): express.Express {
   const app = express();
@@ -8,6 +12,8 @@ export function buildApp(): express.Express {
 
   const gateway = buildX402Gateway();
   app.use(createPaymentMiddleware(gateway));
+
+  const mirrorBaseUrl = process.env[ENV_MIRROR_BASE_URL]?.trim() || DEFAULT_MIRROR_BASE_URL;
 
   app.get("/health", (_req, res) => {
     res.json({
@@ -24,14 +30,13 @@ export function buildApp(): express.Express {
     res.json(buildServiceCatalog());
   });
 
-  app.post("/v1/strategy/yield-risk", (_req, res) => {
-    // Phase 3: payment wall is enforced by x402 middleware above.
-    // Phase 4: AI engine computes the actual yield-risk strategy here.
-    res.status(501).json({
-      status: "not_implemented",
-      message: "AI engine lands in Phase 4; payment processing is live via x402.",
-    });
-  });
+  app.post(
+    "/v1/strategy/yield-risk",
+    createYieldRiskHandler({
+      mirrorBaseUrl,
+      network: DEFAULT_NETWORK,
+    }),
+  );
 
   return app;
 }

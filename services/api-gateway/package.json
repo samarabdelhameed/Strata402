@@ -8,7 +8,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
-    "./x402": "./src/x402.ts"
+    "./x402": "./src/x402.ts",
+    "./analyst": "./src/analyst.ts",
+    "./mirror": "./src/mirror.ts"
   },
   "scripts": {
     "dev": "bun run src/index.ts"
