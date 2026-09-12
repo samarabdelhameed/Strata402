@@ -198,7 +198,9 @@ export async function publishAuditEvent(
 }
 
 /** Guard: HCS is fully optional — missing topic/operator is a soft skip. */
-export function isHcsAuditConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
+export function isHcsAuditConfigured(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
   const topic = env[ENV_HCS_AUDIT_TOPIC_ID]?.trim() ?? "";
   return topic !== "";
 }

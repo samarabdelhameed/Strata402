@@ -16,6 +16,13 @@ interface StatusResponse {
       timestamp?: string;
     };
   };
+  aiEngine: {
+    baseUrl: string;
+    ok: boolean;
+    health: { service?: string; network?: string };
+  };
+  mirror: { baseUrl: string; ok: boolean };
+  hcs: { topicId: string; configured: boolean };
   services: {
     ok: boolean;
     body?: {
@@ -76,6 +83,32 @@ function StatCard({
   );
 }
 
+function SystemTile({
+  label,
+  value,
+  ok,
+  loading,
+}: {
+  label: string;
+  value: string;
+  ok: boolean | null;
+  loading?: boolean;
+}) {
+  return (
+    <div className="glass flex items-center justify-between gap-3 p-3">
+      <div className="min-w-0">
+        <div className="label !mb-1">{label}</div>
+        <div className="mono truncate text-xs text-[#8a93a3]">{value}</div>
+      </div>
+      {loading ? (
+        <span className="chips chip-neutral">…</span>
+      ) : (
+        <span className={`chips ${ok ? "chip-live" : "chip-warn"}`}>{ok ? "LIVE" : "DOWN"}</span>
+      )}
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const status = useApi<StatusResponse>("/api/status", 15_000);
   const hcs = useApi<HcsResponse>("/api/hcs?limit=6", 15_000);
@@ -103,7 +136,7 @@ export default function LandingPage() {
           built from real Mirror Node facts — audited on HCS, proven on-chain.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link href="/dashboard" className="btn btn-cyan">
+          <Link href="/studio" className="btn btn-cyan">
             Launch AI Studio
           </Link>
           <Link href="/audit" className="btn btn-ghost">
@@ -112,7 +145,34 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="mt-12 grid grid-cols-2 gap-4 md:grid-cols-4">
+      <section className="mt-10 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <SystemTile
+          label="API Gateway"
+          value={status.data?.gateway.health.service ?? "—"}
+          ok={status.data?.gateway.ok ?? null}
+          loading={status.loading}
+        />
+        <SystemTile
+          label="AI Engine"
+          value={status.data?.aiEngine.health.service ?? "—"}
+          ok={status.data?.aiEngine.ok ?? null}
+          loading={status.loading}
+        />
+        <SystemTile
+          label="Mirror Node (testnet)"
+          value="public read"
+          ok={status.data?.mirror.ok ?? null}
+          loading={status.loading}
+        />
+        <SystemTile
+          label="HCS Audit Topic"
+          value={status.data?.hcs.topicId || "not configured"}
+          ok={status.data?.hcs.configured ? true : null}
+          loading={status.loading}
+        />
+      </section>
+
+      <section className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard
           label="Service / gateway"
           value={health ? String(health.service ?? "—") : "…"}

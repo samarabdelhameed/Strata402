@@ -2,18 +2,22 @@
 ### Autonomous DeFi Intelligence on Hedera
 **Track:** AI & Agentic Payments on Hedera (Hedera Hackathon)
 
-> Status: **MVP COMPLETE — end-to-end paid request verified on Hedera testnet.
-> Phase 7A (stabilization, contract hardening & submission evidence) complete.**
+> Status: **COMPLETE (submission build)** — end-to-end paid request verified on Hedera
+> testnet; deterministic AI engine (8E), HCS audit logging (8F), and the real-data Web UI
+> (8B) all shipped and verified live. 207 tests pass with live-integration flags on.
+> **207/207 green** against the running gateway (:8080), AI engine (:8000) and Mirror.
 > No production (mainnet) code. This blueprint is the single source of truth for the MVP architecture.
 
 ---
 
 ## 0. Current Implementation Status
 
-> Live proof of the full paid flow (2026-09-10): HTTP 200 after settlement
-> (`settlementVerified: true`), transaction
-> `0.0.9185802-1789101908-717608026`, payer `0.0.10329902`, payTo `0.0.10464194`,
-> 1,000,000 tinybars, `hedera:testnet` — verifiable on HashScan.
+> Live proof of the full paid flow (latest run via the production Web build,
+> 2026-09-11): HTTP 200 after settlement (`settlementVerified: true`), transaction
+> `0.0.9185802-1789164101-943032414`, payer `0.0.10329902`, payTo `0.0.10464194`,
+> 1,000,000 tinybars, `hedera:testnet` — verifiable on HashScan. Earlier verified
+> runs: `0.0.9185802-1789162601-197120935` (Web paid flow) and
+> `0.0.9185802-1789101908-717608026` (CLI agent).
 
 ### Completed (verified in this repository)
 
@@ -26,18 +30,19 @@
 | Mirror analysis | Real Mirror Node account reads (balance, recent 30-day flow), explicit `source` / `freshness` / `limitations`, `dataUnavailable` degradation | `RUN_MIRROR_INTEGRATION=true` green |
 | Yield-risk request contract | Shared `{ accountId, riskTolerance, amountHbar }`; 400 before any mirror read; agent fail-closed pre-send | Unit + integration tests |
 | Fail-closed payment checks | Wrong network/asset/amount/scheme + payTo mismatch abort with zero signed requests | `tests/integration/c1-paid.test.ts` |
-| Security / submission evidence | No secrets in code; `.env.example` placeholders only; public txId documented | `git diff --check` clean |
+| Deterministic AI engine | Real FastAPI service (`services/ai-engine`) mirroring the gateway contract; honest `unavailable`; never fabricates riskScore/confidence | Live on `:8000`; 12 pytest green |
+| HCS audit logging | Every handled paid request logged to topic `0.0.10483725` (seq 1…7, growing); fail-open, metadata only | Live mirror fetch |
+| Web UI (`apps/web`) | Next.js 14 dashboard over real data (gateway + Mirror + HCS) + server-side real x402 paid flow | Verified on `:3000` and prod standalone build |
+| Security / submission evidence | No secrets in code; `.env.example` placeholders only; public txIds documented | `git diff --check` clean |
 
-### Deferred (explicitly out of MVP + Phase 7A scope)
+### Deferred (explicitly out of MVP + 7A + 8 series scope)
 
 | Item | Status |
 | :--- | :--- |
-| AI engine / LLM narration (AI DeFi intelligence) | Not started |
 | SaucerSwap adapter | Pending official API credentials + live source verification |
 | Bonzo Finance adapter | Deferred — no eligible live Testnet source verified on 2026-09-11 |
 | Smart contracts (HSCS) | Deferred — never blocks qualification |
-| HCS audit topics / HCS-14 discovery | Deferred (post-MVP) |
-| Frontend dashboard | Deferred (stretch) |
+| HCS-14 discovery | Deferred (post-MVP) |
 | Mainnet | Out of scope |
 | Dynamic pricing / HTS payments | Stretch only |
 
@@ -69,7 +74,7 @@ The MVP is deliberately scoped to satisfy the track's qualification requirements
 | Tagline | Autonomous DeFi Intelligence on Hedera |
 | Repository name | `strata402` |
 | Root directory | `strata402/` |
-| Agent identity | `strata402-agent` |
+| Agent identity | `strata402-api-gateway` (service) · `strata402-ai-engine` (engine); payer/carrier is the consuming-agent |
 | Optional Web3 identity | `strata402.eth` (ENS — stretch goal) |
 
 **Naming rule:** everywhere — paths, `package.json` names, npm/Bun workspace names, Docker service names, env vars, code comments, docs — must use `strata402`. The previous project name is permanently retired.
@@ -94,7 +99,10 @@ Suggested package naming:
 
 **Strata402** is an HTTP-native, x402-gated AI DeFi intelligence service:
 
-- A real **AI inference endpoint** that returns structured DeFi analysis: portfolio risk score, yield opportunity, market context, confidence score, recommendation, disclaimer.
+- A real **AI inference endpoint** that returns structured DeFi analysis from verified
+  account-level on-chain facts: observed account/balance, 30-day flow, freshness health,
+  explicitly-labeled `unavailable` protocol features, limitations, and disclaimer. Never an
+  invented risk score or confidence number.
 - **Deterministic financial math** (risk score, balance calculations) separated from **generative AI explanation** (strategy narrative).
 - Monetized natively via **x402 v2** — the consumer pays HBAR per call through **Blocky402**.
 - An **independent consuming agent** that automatically performs discovery → challenge → payment → retry → result.
@@ -125,7 +133,7 @@ Why Hedera + x402 wins the track: sub-second finality makes true per-call microp
 | 1. Host a real x402-gated service on testnet/mainnet | `POST /v1/strategy/yield-risk` is protected by an x402 v2 guard (Express middleware). `GET /health` and `GET /v1/services` stay free. |
 | 2. Settle payments through Blocky402 | Consuming agent routes payment through Blocky402 `/verify` + `/settle`; gateway verifies the returned proof. |
 | 3. Independent AI agent/platform that consumes the service | `apps/consuming-agent` is a standalone CLI agent (not frontend). |
-| 4. Complete at least one real paid request end-to-end | `e2e/x402-payment.test` performs a claimable **Hedera testnet** HBAR transfer via x402 and asserts `200 OK` + a valid payment response. |
+| 4. Complete at least one real paid request end-to-end | `tests/integration/c1-paid.test.ts` performs a claimable **Hedera testnet** HBAR transfer via x402 and asserts `200 OK` + a valid payment response. |
 | 5. Public GitHub repository | `strata402` repo made public before submission. |
 | 6. Professional README | Root README covers setup, architecture, and payment flow (Section 32). |
 | 7. Demo video ≤ 5 minutes | Section 31 provides the exact demo script. |
@@ -147,7 +155,9 @@ Why Hedera + x402 wins the track: sub-second finality makes true per-call microp
 
 1. **Real end-to-end money movement** — not a mock. The demo shows an actual testnet HBAR transfer settled by Blocky402 and a paid AI response.
 2. **Official protocol stack** — `@x402/*` packages, canonical v2 transport (`PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE` / `PAYMENT-RESPONSE`), Blocky402, HBAR exact scheme. Judge points to protocol compliance, not workarounds.
-3. **Deterministic + generative split** — risk scores are reproducible math; AI only narrates. This is more credible and defensible than raw LLM output.
+3. **Deterministic + honest-unavailable split** — analysis is reproducible math over real
+   mirror facts; anything not genuinely verified (pool APY, SaucerSwap, Bonzo) is listed in
+   `unavailable`, never invented. This is more credible and defensible than raw LLM output.
 4. **Focused monorepo** — one clear architecture, no repo sprawl. `contracts/`, `services/`, `apps/`, `packages/` are all present but incrementally built.
 5. **Sub-second finality story** — the demo ties Hedera's speed to the micropayment UX in 30 seconds of screen time.
 
@@ -244,7 +254,7 @@ The MVP is done when all of the following pass on **Hedera testnet**:
                      ┌──────────────────────────────────────────────┐
                      │             CONSUMER LAYER                    │
                      │  apps/consuming-agent (CLI autonomous agent)  │
-                     │        (post-MVP: apps/web dashboard)         │
+                     │  apps/web (Next.js dashboard, server-side API)│
                      └───────────────┬──────────────────────────────┘
                                      │  HTTP/1.1 + x402 v2 canonical transports
                                      │  (PAYMENT-REQUIRED / PAYMENT-SIGNATURE /
@@ -258,19 +268,18 @@ The MVP is done when all of the following pass on **Hedera testnet**:
                                      │  internal HTTP (verified request)
                                      ▼
                      ┌──────────────────────────────────────────────┐
-                     │         AI ENGINE (FastAPI, Python)           │
-                     │  api/  core/  models/  services/              │
+                     │         AI ENGINE (FastAPI, Python)          │
+                     │  app/  api/  core/  models/  services/       │
                      │  ├─ hedera_mirror.py  (verified data layer)   │
-                     │  ├─ risk_engine.py    (deterministic math)    │
-                     │  ├─ saucerswap.py     (adapter, optional)     │
-                     │  └─ bonzo.py          (adapter, optional)     │
+                     │  └─ risk_engine.py    (deterministic math)    │
+                     │  SaucerSwap/Bonzo adapters: PENDING (gated)   │
                      └───────────────┬──────────────────────────────┘
                                      │
         ┌────────────────────────────┼────────────────────────────┐
         ▼                            ▼                            ▼
 ┌──────────────────┐      ┌──────────────────┐      ┌──────────────────────┐
 │  HEDERA TESTNET  │      │     BLOCKY402    │      │   HCS AUDIT TOPIC    │
-│  HBAR transfer   │      │  /verify /settle │      │  (post-MVP, logged)  │
+│  HBAR transfer   │      │  /verify /settle │      │  (LIVE, 0.0.10483725)│
 │  Mirror Node API │      │                  │      │                      │
 └──────────────────┘      └──────────────────┘      └──────────────────────┘
 
@@ -283,13 +292,13 @@ The MVP is done when all of the following pass on **Hedera testnet**:
 | Path | Responsibility |
 | :--- | :--- |
 | `apps/consuming-agent/` | Independent autonomous payer; runs its own loop, no frontend dependency. |
-| `apps/web/` | Optional dashboard (post-MVP). |
+| `apps/web/` | Real-data dashboard (Live): server-side reads, paid flow, HCS auditor. |
 | `services/api-gateway/` | The x402 "resource server": challenge generation, proof verification, nonce/expiry/replay checks, routing, audit hooks. |
-| `services/ai-engine/` | Deterministic risk/yield engine + AI narration; owns all financial data adapters. |
+| `services/ai-engine/` | Deterministic engine mirroring the gateway contract; honest `unavailable`. SaucerSwap/Bonzo adapters remain `PENDING` (gated). |
 | `contracts/` | Solidify Hedera HSCS contracts; deployment is post-MVP and never blocks qualification. |
 | `packages/x402-sdk/` | Shared TS utilities: header parsing/serialization, types, HCS audit helper. |
 | `scripts/` | Operator tooling: create HCS topic, register service, verify a testnet payment. |
-| `tests/` | `unit/` `integration/` `x402/` `e2e/` test suites. |
+| `tests/` | `unit/` + `integration/` suites; 207 tests green (live flags on). |
 | `docs/` | Architecture, payment flow, testing, demo script docs. |
 
 ---
@@ -308,20 +317,21 @@ flowchart TD
     B -->|8. internal call| E["ai-engine<br/>(FastAPI risk + AI)"]
     E -->|9. structured analysis| B
     B -->|10. 200 OK + PAYMENT-RESPONSE header| A
-    B -.->|11. audit log (post-MVP)| H["HCS Topic"]
+    W["apps/web<br/>(Live)"] -->|paid analysis| B
+    B -.->|11. audit log (LIVE, 0.0.10483725)| H["HCS Topic"]
     E -.->|Mirror Node reads| C
 
-    subgraph MVP
+    subgraph Delivered
         A
         B
         E
         D
         C
+        W
+        H
     end
 
-    subgraph Post-MVP
-        G["apps/web dashboard"]
-        H
+    subgraph Deferred
         I["contracts/ (HSCS)"]
     end
 ```
@@ -364,109 +374,90 @@ strata402/
 ├── .gitignore
 ├── README.md
 ├── apps/
-│   ├── web/                  # (post-MVP) Next.js 14 dashboard
-│   └── consuming-agent/      # MVP — autonomous x402 buyer agent
+│   ├── web/                  # Live Next.js 14 dashboard (real-data UI)
+│   │   ├── src/app/          # pages: landing, dashboard, studio, audit, orders
+│   │   ├── src/app/api/      # server-side /status /account /hcs /paid /services …
+│   │   ├── src/lib/          # data.ts (gateway/mirror reads), paid.ts (runC1 delegate)
+│   │   └── src/components/   # Navbar, Shell
+│   └── consuming-agent/      # autonomous x402 buyer agent
 │       ├── src/
-│       │   ├── index.ts      # main loop
-│       │   ├── discover.ts   # load service metadata
-│       │   ├── x402-client.ts# 402 → builder → PAYMENT-SIGNATURE
-│       │   └── types.ts
+│       │   ├── index.ts      # exports, runC1, EXIT_*
+│       │   ├── cli-c1-paid.ts# paid flow (runC1), C1 safety gates
+│       │   ├── preflight.ts  # fail-closed env gates
+│       │   ├── paid-request.ts, payment-constructor.ts, spend-ledger.ts
+│       │   ├── payer-mirror.ts, facilitator.ts
+│       │   ├── yield-risk-request.ts, config.ts, types.ts
+│       │   └── create-hcs-topic.ts
 │       ├── package.json
 │       └── README.md
 ├── services/
-│   ├── api-gateway/          # MVP — Express x402 resource server
-│   │   ├── src/
-│   │   │   ├── server.ts
-│   │   │   ├── routes/       # health, services, strategy,yield-risk, audit
-│   │   │   ├── x402/         # challenge, exact-scheme, verify, replay guard
-│   │   │   ├── middleware/   # body parsing, error handling
-│   │   │   ├── services/     # blocky402 client, mirror-node client
-│   │   │   └── audit/        # (post-MVP) HCS logger
-│   │   ├── package.json
-│   │   └── README.md
-│   └── ai-engine/            # MVP — FastAPI risk + AI narration
-│       ├── app/
-│       │   ├── main.py
-│       │   ├── api/          # v1/strategy/yield-risk router
-│       │   ├── core/         # config, disclaimers
-│       │   ├── models/       # pydantic schemas
-│       │   └── services/
-│       │       ├── hedera_mirror.py   # verified data adapter
-│       │       ├── risk_engine.py     # deterministic math
-│       │       ├── saucerswap.py      # adapter (post-MVP, [VERIFY])
-│       │       └─ bonzo.py           # adapter (post-MVP, [VERIFY])
-│       ├── requirements.txt
-│       ├── Dockerfile
-│       └── README.md
-├── contracts/                # HSCS contracts (post-MVP deployment)
-│   ├── src/
-│   │   ├── AutoSwapLimit.sol
-│   │   ├── HederaYieldVault.sol
-│   │   ├── AgentRegistryHCS14.sol
-│   │   └── interfaces/
-│   ├── scripts/deploy.ts
-│   ├── test/
-│   ├── hardhat.config.ts
-│   ├── package.json
-│   └── README.md
+│   ├── api-gateway/          # Express x402 resource server
+│   │   └── src/
+│   │       ├── server.ts     # Express app, routing
+│   │       ├── x402.ts       # x402 guard wiring (official middleware)
+│   │       ├── analyst.ts    # deterministic analysis + audit hook
+│   │       ├── mirror.ts     # Mirror Node client
+│   │       ├── payment-proof.ts, hcs-audit.ts, ai-engine-client.ts
+│   │       └── pages/        # demo HTML page
+│   └── ai-engine/            # FastAPI deterministic engine
+│       ├── app/{main.py,api/routes.py,core/config.py,models/schemas.py}
+│       ├── app/services/{hedera_mirror.py,risk_engine.py}
+│       ├── tests/, requirements.txt, pytest.ini, README.md
+├── contracts/                # empty (HSCS) — deferred, never blocks qualification
 ├── packages/
-│   └── x402-hedera-sdk/      # shared x402/HCS utilities
-│       ├── src/
-│       │   ├── payment.ts
-│       │   ├── headers.ts    # canonical transport header helpers
-│       │   ├── types.ts
-│       │   └── hcs-audit.ts
-│       ├── package.json
-│       └── README.md
+│   └── x402-sdk/             # shared constants/catalog/contract
+│       └── src/{index.ts, hcs-audit.ts, yield-risk-contract.ts}
 ├── scripts/
-│   ├── create-hcs-topic.ts
-│   ├── register-service.ts
-│   └── verify-testnet-payment.ts
+│   ├── validate-workspaces.mjs
+│   └── unit-tests/           # reserved
 ├── tests/
-│   ├── unit/
-│   ├── integration/
-│   ├── x402/
-│   └── e2e/
-└── docs/
-    ├── architecture.md
-    ├── payment-flow.md
-    ├── testing.md
-    └── demo-script.md
+│   ├── unit/                 # contract, headers, HCS audit, ledger, preflight, SDK probe
+│   └── integration/          # gateway, discovery, challenge, mirror, C1 paid, proof
+└── doc/                      # design docs (local only, git-ignored)
 ```
 
-**Incremental note:** this is the target. Implementation creates directories per phase only.
+**Incremental note:** this is the achieved state (2026-09-11); empty placeholders (`contracts/`,
+`tests/e2e`, `tests/x402`) exist only as reserved slots.
 
 ---
 
 ## 17. API Contract
 
-Base URL (local): `http://localhost:4000`
+Base URL (local): `http://localhost:8080`
 
 ### `GET /health` — FREE
 **200 OK**
 ```json
-{ "status": "ok", "service": "strata402-agent", "version": "0.1.0" }
+{
+  "status": "ok",
+  "service": "strata402-api-gateway",
+  "version": "0.1.0",
+  "network": "hedera:testnet",
+  "x402Version": 2,
+  "timestamp": "2026-09-11T22:09:02.249Z"
+}
 ```
 
 ### `GET /v1/services` — FREE (service discovery)
 **200 OK**
 ```json
 {
-  "service": { "name": "Strata402", "agent": "strata402-agent", "version": "0.1.0" },
-  "description": "Metered AI DeFi intelligence for autonomous agents on Hedera.",
-  "capabilities": ["portfolio-risk", "yield-analysis", "hedera-market-context"],
-  "endpoint": { "method": "POST", "path": "/v1/strategy/yield-risk" },
-  "payment": {
-    "protocol": "x402",
-    "version": "v2",
-    "network": "hedera:testnet",
-    "asset": "0.0.0",
-    "facilitator": "Blocky402",
-    "price": { "amount": "1000000", "unit": "tinybars", "display": "0.01 HBAR" }
-  }
+  "network": "hedera:testnet",
+  "currency": "HBAR",
+  "payTo": "0.0.10464194",
+  "services": [
+    {
+      "id": "yield-risk",
+      "name": "Yield-Risk Strategy",
+      "description": "Risk-scored yield strategy assessment for a DeFi protocol position on Hedera.",
+      "priceTinybars": 1000000,
+      "asset": "0.0.0",
+      "unit": "tinybar"
+    }
+  ]
 }
 ```
-> `[VERIFY]` exact field names at implementation using official x402 v2 + Blocky402 docs.
+> Verified verbatim against the running gateway (live reads behind it in tests).
 
 ### `POST /v1/strategy/yield-risk` — PAID (x402-gated)
 
@@ -597,7 +588,7 @@ The implementation must follow this sequence:
 **Server-side enforcement after verification:**
 - **Payload identity:** a transaction ID alone is **not** a valid x402 payment payload — the exact scheme uses a partially signed serialized `TransferTransaction` inside the `PaymentPayload`. Accept only the real payload format.
 - **Amount validation:** matches issued requirements exactly in tinybars.
-- **Recipient validation:** `payTo` equals `PAYMENT_RECIPIENT_HEDERA_ID`.
+- **Recipient validation:** `payTo` equals `HEDERA_SERVICE_ACCOUNT_ID`.
 - **Network validation:** `hedera:testnet`.
 - **Resource validation:** payment requirement's resource matches the requested path.
 - **Expiry validation:** reject expired requirements (`410`).
@@ -639,7 +630,7 @@ Blocky402 docs may contain legacy/implementation-specific examples. Before writi
 
 The canonical application contract remains **x402 v2**. Any facilitator-specific compatibility behavior stays isolated inside the x402 integration layer and must not leak into business logic.
 
-`[VERIFY]` (all carry the marker at implementation time): `BLOCKY402_URL`, `/verify` + `/settle` request/response contracts, proof/settlement TTL, and whether the server must call `/verify` again or trust the returned settlement data.
+`[VERIFY]` resolved at implementation (now confirmed live): `X402_FACILITATOR_URL` (`https://x402.org/facilitator`), `/verify` + `/settle` request/response contracts, proof/settlement TTL, and whether the server must call `/verify` again or trust the returned settlement data — all verified against the running gateway and real testnet settlements.
 
 **Design decisions**
 - Keep Blocky402 as **the only** settlement path for the demo (no fallback server-side "self-approval").
@@ -678,7 +669,7 @@ The canonical application contract remains **x402 v2**. Any facilitator-specific
 | Hedera testnet | Payment network, faucet HBAR | ✅ |
 | `@hiero-ledger/sdk` | Account setup, transaction construction (client-side signer in agent); prefer `@x402/hedera` re-exports to avoid duplicate SDK installs | ✅ |
 | Mirror Node REST | Read-only data for deterministic engine | ✅ |
-| Hedera Consensus Service | Audit topic, service registry (post-MVP) | ⚠️ post-MVP |
+| Hedera Consensus Service | Live audit topic `0.0.10483725` (metadata-only messages) | ✅ live |
 | HCS-14 | Agent discovery registry | ⚠️ post-MVP |
 | HTS | Asset/concepts, optional payment token | ❌ stretch |
 | Scheduled Transactions | Multisig/time-delayed automation | ❌ stretch |
@@ -721,7 +712,7 @@ The canonical application contract remains **x402 v2**. Any facilitator-specific
 ## 25. Security Model
 
 1. **No secrets in frontend**: private keys live only in server/agent env; nothing is prefixed `NEXT_PUBLIC_` unless public by design.
-2. **Key isolation**: operator account key (server) ≠ consuming-agent buyer key ≠ `PAYMENT_RECIPIENT` (treasury) where feasible.
+2. **Key isolation**: operator account key (server) ≠ consuming-agent buyer key ≠ `HEDERA_SERVICE_ACCOUNT_ID` (payTo) where feasible.
 3. **Payment validation**: exact amount in tinybars, `payTo` recipient equality, network pinning (`hedera:testnet`), expiry, replay guard, real `PaymentPayload` format only (Section 18).
 4. **Input validation**: strict JSON schema, type coercion, length caps.
 5. **Prompt boundaries**: user input is data, never instructions.
@@ -757,13 +748,17 @@ The canonical application contract remains **x402 v2**. Any facilitator-specific
 | Payment payload construction | partially signed `TransferTransaction` serialized as x402 `PaymentPayload`; fee payer = facilitator | unit |
 | Tinybars conversion | HBAR ↔ tinybars deterministic + tested | unit |
 | `PAYMENT-SIGNATURE` retry | correct header → 200 + `PAYMENT-RESPONSE` header | integration |
-| Blocky402 verify/settle | mocked ✓; contract against real API marked `[VERIFY]` | integration |
-| Hedera testnet tx | real transfer on `hedera:testnet` | e2e (opt-in, requires funded buyer) |
+| Blocky402 verify/settle | verified live through real testnet settlements | integration |
+| Hedera testnet tx | real transfer on `hedera:testnet` | integration (live flag, funded buyer) |
 | Negative cases | invalid payload / wrong amount (tinybars) / wrong recipient / wrong network / expired / replayed | integration |
-| AI fallback | LLM down → template response still 200 | integration |
-| E2E paid inference | full chain §18 on testnet | e2e |
+| Deterministic engine deps | LLM disabled → deterministic path still 200 | integration |
+| E2E paid inference | full chain §18 on testnet | `tests/integration/c1-paid.test.ts` |
 
-**The single E2E acceptance test asserts the complete chain and prints the Hedera transaction ID.** Funding the buyer account with faucet HBAR is a documented pre-step.
+**Live command (against running gateway :8080 + Mirror):**
+```bash
+RUN_GATEWAY_INTEGRATION=true RUN_MIRROR_INTEGRATION=true bun test   # 207 pass / 0 fail
+```
+A live C1 run prints the Hedera transaction ID. Funding the payer account with faucet HBAR is a documented pre-step.
 
 ---
 
@@ -772,54 +767,63 @@ The canonical application contract remains **x402 v2**. Any facilitator-specific
 ```env
 # ===== Hedera testnet =====
 HEDERA_NETWORK=testnet
+STRATA_NETWORK=hedera:testnet
 HEDERA_MIRROR_NODE_URL=https://testnet.mirrornode.hedera.com
 
-# ===== Service account (resource server) =====
-SERVICE_ACCOUNT_ID=0.0.PLACEHOLDER
-SERVICE_ACCOUNT_KEY=...placeholder...
+# ===== Service account (resource server / payTo) =====
+HEDERA_SERVICE_ACCOUNT_ID=0.0.1234
+HEDERA_SERVICE_ACCOUNT_KEY=...placeholder...
 
-# ===== Payment recipient (treasury) =====
-PAYMENT_RECIPIENT_HEDERA_ID=0.0.PLACEHOLDER
+# ===== Payer (consuming agent C1 / web paid flow, server-only) =====
+STRATA402_PAYER_ACCOUNT_ID=0.0.1234
+STRATA402_PAYER_PRIVATE_KEY=...placeholder...
+
+# ===== x402 facilitator (Blocky402) =====
+X402_FACILITATOR_URL=https://x402.org/facilitator
 
 # ===== x402 pricing =====
 X402_PRICE_TINYBARS=1000000
 X402_ASSET=0.0.0
-X402_PAYMENT_TTL_SECONDS=300
 
-# ===== Blocky402 =====
-BLOCKY402_URL=[VERIFY]
-X402_FACILITATOR_API_KEY=...placeholder...
+# ===== Gateway / mirror wiring =====
+STRATA402_SERVICE_URL=http://127.0.0.1:8080
+STRATA402_GATEWAY_BASE_URL=http://127.0.0.1:8080
+STRATA402_MIRROR_BASE_URL=https://testnet.mirrornode.hedera.com
+STRATA402_ALLOWED_PAYTO=0.0.1234
 
-# ===== Consuming agent buyer =====
-BUYER_ACCOUNT_ID=0.0.PLACEHOLDER
-BUYER_PRIVATE_KEY=...placeholder...
+# ===== Autonomous payer safety gates (fail-closed) =====
+STRATA402_RUN_C0=false
+STRATA402_RUN_C0_PAYLOAD=false
+STRATA402_RUN_C1=false
+STRATA402_C1_CONFIRM=false
+STRATA402_MAX_PER_REQUEST_TINYBARS=1000000
+STRATA402_MAX_TOTAL_BUDGET_TINYBARS=1000000
 
-# ===== HCS audit (post-MVP) =====
-HCS_AUDIT_TOPIC_ID=0.0.PLACEHOLDER
-HCS14_REGISTRY_TOPIC=0.0.PLACEHOLDER
+# ===== Yield-risk analysis contract =====
+STRATA402_RISK_TOLERANCE=balanced
+STRATA402_ANALYSIS_AMOUNT_HBAR=1
 
-# ===== AI provider =====
+# ===== SaucerSwap (PENDING) =====
+# Official API key must stay empty until granted; no fake keys, no unofficial sources.
+SAUCERSWAP_API_KEY=
+SAUCERSWAP_API_URL=https://test-api.saucerswap.finance
+
+# ===== HCS audit log topic (live) =====
+HCS_AUDIT_TOPIC_ID=
+STRATA402_HCS_CREATE=false
+
+# ===== AI provider (hooks, disabled unless all set) =====
 LLM_PROVIDER=...placeholder...
 LLM_API_KEY=...placeholder...
 LLM_MODEL=...placeholder...
 
-# ===== Adapters (post-MVP, optional) =====
-# SaucerSwap official testnet API. Key must stay empty until an official key is granted.
-SAUCERSWAP_API_KEY=
-SAUCERSWAP_API_URL=https://test-api.saucerswap.finance
-BONZO_API_URL=[VERIFY]
-
 # ===== Local dev =====
-REDIS_URL=redis://localhost:6379
-PORT=4000
+PORT=8080
 AI_ENGINE_URL=http://localhost:8000
-
-# ===== Frontend public (post-MVP only, truly public) =====
-NEXT_PUBLIC_BACKEND_URL=[VERIFY]
-NEXT_PUBLIC_NETWORK=testnet
 ```
 
 All keys are placeholders. Real values live only in local `.env` (gitignored).
+Mirrors `.env.example` verbatim.
 
 ---
 
@@ -899,11 +903,12 @@ Strictly sequential; each phase ends with tests + acceptance criteria, and the n
   excluded), **SaucerSwap pending** official `x-api-key` + live verification. No adapter written.
   Honest controlled-unavailable retained. Extend `unavailable` as facts change.
 
-### Phase 8B — Demo UX over the proven flow (CURRENT)
-- Simple presentation layer over the real MVP: service discovered → price/recipient verified →
-  payment settled → risk analysis returned → Hedera transaction verified.
-- Uses only existing real Mirror Node data, real transaction evidence, and the x402 flow.
-  No smart contracts, no Bonzo, no SaucerSwap.
+### Phase 8B — Real-data Web UI over the proven flow (DONE)
+- Next.js 14 dashboard (`apps/web`) over the live MVP: service catalog, account facts,
+  paid x402 analysis (server-signed, mirror-verified), HCS audit explorer.
+- State verified live on `:3000` (dev) and the standalone production build; a web-initiated
+  paid request settled on testnet (`0.0.9185802-1789164101-943032414`) and published HCS seq 7.
+- Honest gates: SaucerSwap / Bonzo / HCS-14 shown `PENDING` — no fabricated fills.
 
 ### Phase 8C — SaucerSwap Source Verification (+ adapter after a passing live probe)
 Only when an official `x-api-key` is available: probe `test-api.saucerswap.finance`

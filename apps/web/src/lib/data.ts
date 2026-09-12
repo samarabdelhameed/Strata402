@@ -16,6 +16,9 @@ export const MIRROR_BASE_URL =
 export const HCS_AUDIT_TOPIC_ID =
   process.env.HCS_AUDIT_TOPIC_ID?.trim() || "";
 
+export const AI_ENGINE_BASE_URL =
+  process.env.AI_ENGINE_URL?.trim() || "http://127.0.0.1:8000";
+
 export interface ServiceStatus {
   ok: boolean;
   service?: string;
@@ -33,12 +36,13 @@ export interface GatewayRead {
   error?: string;
 }
 
-/** GET a JSON endpoint on the live api-gateway (server-side, no CORS). */
-export async function readGateway(path: string): Promise<GatewayRead> {
+/** GET a JSON endpoint on a live service with a short timeout (server-side). */
+async function readJson(base: string, path: string): Promise<GatewayRead> {
   try {
-    const res = await fetch(`${GATEWAY_BASE_URL}${path}`, {
+    const res = await fetch(`${base}${path}`, {
       headers: { accept: "application/json" },
       cache: "no-store",
+      signal: AbortSignal.timeout(4000),
     });
     const text = await res.text();
     let body: unknown = null;
@@ -56,6 +60,29 @@ export async function readGateway(path: string): Promise<GatewayRead> {
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+/** GET a JSON endpoint on the live api-gateway (server-side, no CORS). */
+export async function readGateway(path: string): Promise<GatewayRead> {
+  return readJson(GATEWAY_BASE_URL, path);
+}
+
+/** GET the live AI engine health (deterministic narration engine on :8000). */
+export async function readAiEngineHealth(): Promise<ServiceStatus> {
+  const read = await readJson(AI_ENGINE_BASE_URL, "/health");
+  if (!read.ok) {
+    return {
+      ok: false,
+      error: read.error ?? `ai-engine /health returned ${read.status}`,
+    };
+  }
+  const body = read.body as Record<string, unknown>;
+  return {
+    ok: body.status === "ok",
+    service: typeof body.service === "string" ? body.service : undefined,
+    version: typeof body.version === "string" ? body.version : undefined,
+    network: typeof body.network === "string" ? body.network : undefined,
+  };
 }
 
 export async function readHealth(): Promise<ServiceStatus> {

@@ -11,7 +11,7 @@
   "scripts": {
     "validate": "bun run scripts/validate-workspaces.mjs",
     "test": "bun test",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && bun --cwd apps/web run typecheck",
     "preflight:c0": "bun apps/consuming-agent/src/cli-c0.ts",
     "preflight:c0:payload": "bun apps/consuming-agent/src/cli-c0-payload.ts",
     "preflight:c1": "bun apps/consuming-agent/src/cli-c1-paid.ts",

@@ -34,7 +34,6 @@ run("real unpaid 402 challenge against the running local Gateway", async () => {
   expect(result.challenge.network).toBe(ALLOWED_NETWORK);
   expect(result.challenge.asset).toBe(ALLOWED_ASSET);
   expect(result.challenge.amount).toBe(String(ALLOWED_PRICE_TINYBARS));
-  expect(result.challenge.payTo).toBe("0.0.1234");
   expect(result.challenge.maxTimeoutSeconds).toBe(300);
   expect(result.challenge.feePayer).toBe("0.0.9185802");
   expect(result.challenge.payTo).toBe(EXPECTED_PAYTO);
