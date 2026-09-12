@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strata402 — Autonomous DeFi Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-primary:#08090D;
+    --bg-surface:#0E1118;
+    --bg-surface-2:#12151D;
+    --bg-surface-hover:#161B26;
+    --border-subtle:rgba(255,255,255,.08);
+    --border-glow:rgba(0,242,254,.35);
+    --text-primary:#F3F5F8;
+    --text-secondary:#8A93A6;
+    --text-tertiary:#5B6376;
+    --cyan:#00F2FE;
+    --blue:#4FACFE;
+    --emerald:#00E676;
+    --emerald2:#1DE9B6;
+    --warn:#FF9100;
+    --danger:#FF5252;
+    --grad-primary:linear-gradient(135deg,#00F2FE 0%,#4FACFE 100%);
+    --grad-emerald:linear-gradient(135deg,#00E676 0%,#1DE9B6 100%);
+    --grad-warning:linear-gradient(135deg,#FF9100 0%,#FF5252 100%);
+    --glow-cyan:0 0 30px rgba(0,242,254,.20);
+    --glow-emerald:0 0 25px rgba(0,230,118,.18);
+    --glass-blur:blur(16px) saturate(180%);
+    --radius-lg:22px;
+    --radius-md:16px;
+    --radius-sm:10px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:'Inter',sans-serif;
+    background:
+      radial-gradient(1200px 600px at 20% -10%, rgba(0,242,254,.08), transparent 60%),
+      radial-gradient(1000px 600px at 100% 0%, rgba(0,230,118,.06), transparent 55%),
+      var(--bg-primary);
+    color:var(--text-primary);
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:32px 16px;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* ===== App Frame ===== */
+  .app{
+    width:100%;
+    max-width:428px;
+    background:var(--bg-primary);
+    border:1px solid var(--border-subtle);
+    border-radius:36px;
+    overflow:hidden;
+    position:relative;
+    box-shadow:0 40px 100px -20px rgba(0,0,0,.7), inset 0 0 0 1px rgba(255,255,255,.02);
+    display:flex;
+    flex-direction:column;
+    height:900px;
+  }
+
+  /* ===== Header ===== */
+  .header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px 20px 14px;
+    flex-shrink:0;
+  }
+  .brand{display:flex; align-items:center; gap:9px;}
+  .brand-mark{
+    width:30px; height:30px; border-radius:9px;
+    background:var(--grad-primary);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:var(--glow-cyan);
+  }
+  .brand-mark svg{width:16px;height:16px;}
+  .brand-name{font-weight:800; font-size:16.5px; letter-spacing:-.02em;}
+  .brand-name span{color:var(--text-secondary); font-weight:600;}
+  .header-actions{display:flex; align-items:center; gap:10px;}
+  .icon-btn{
+    width:38px; height:38px; border-radius:50%;
+    background:var(--bg-surface);
+    border:1px solid var(--border-subtle);
+    display:flex; align-items:center; justify-content:center;
+    position:relative; cursor:pointer;
+    transition:border-color .2s, transform .15s;
+  }
+  .icon-btn:hover{border-color:var(--border-glow); transform:translateY(-1px);}
+  .icon-btn svg{width:17px;height:17px; stroke:var(--text-secondary);}
+  .dot-live{
+    position:absolute; top:-1px; right:-1px; width:9px; height:9px; border-radius:50%;
+    background:var(--emerald); box-shadow:0 0 8px var(--emerald);
+    animation:pulse-dot 2s infinite;
+  }
+  .avatar{
+    width:38px; height:38px; border-radius:50%;
+    background:linear-gradient(135deg,#3a3f52,#1b1e28);
+    border:1px solid var(--border-subtle);
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:700; color:var(--cyan);
+  }
+
+  /* ===== Content / Screens ===== */
+  .content{
+    flex:1; overflow-y:auto; padding:4px 20px 100px;
+    scrollbar-width:none;
+  }
+  .content::-webkit-scrollbar{display:none;}
+  .screen{display:none;}
+  .screen.active{display:block; animation:screenIn .32s cubic-bezier(.2,.8,.2,1);}
+  @keyframes screenIn{
+    from{opacity:0; transform:scale(.98) translateY(6px);}
+    to{opacity:1; transform:scale(1) translateY(0);}
+  }
+  .stagger > *{ animation:cardIn .45s cubic-bezier(.2,.8,.2,1) backwards; }
+  .stagger > *:nth-child(1){animation-delay:.02s;}
+  .stagger > *:nth-child(2){animation-delay:.09s;}
+  .stagger > *:nth-child(3){animation-delay:.16s;}
+  .stagger > *:nth-child(4){animation-delay:.23s;}
+  .stagger > *:nth-child(5){animation-delay:.30s;}
+  @keyframes cardIn{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.06em;
+    color:var(--text-tertiary); margin-bottom:6px; display:flex; align-items:center; gap:6px;
+  }
+  .section-title{font-size:15px; font-weight:700; margin:26px 0 12px; display:flex; align-items:center; justify-content:space-between;}
+  .section-title a{font-size:12.5px; color:var(--cyan); font-weight:600; text-decoration:none;}
+
+  /* ===== Card base ===== */
+  .card{
+    background:var(--bg-surface);
+    border:1px solid var(--border-subtle);
+    border-radius:var(--radius-md);
+    padding:18px;
+    backdrop-filter:var(--glass-blur);
+    transition:border-color .25s, transform .2s;
+  }
+  .card:hover{border-color:rgba(255,255,255,.14);}
+
+  /* ===== HOME SCREEN ===== */
+  .hero{
+    border-radius:var(--radius-lg);
+    padding:26px 22px;
+    background:linear-gradient(160deg, rgba(0,242,254,.10), rgba(0,230,118,.05) 60%, transparent), var(--bg-surface);
+    border:1px solid var(--border-subtle);
+    position:relative; overflow:hidden;
+  }
+  .hero::after{
+    content:''; position:absolute; inset:0;
+    background:radial-gradient(220px 140px at 90% 0%, rgba(0,242,254,.18), transparent 70%);
+    pointer-events:none;
+  }
+  .hero h1{font-size:21px; line-height:1.28; font-weight:800; letter-spacing:-.02em; max-width:280px;}
+  .hero p{font-size:12.5px; color:var(--text-secondary); margin-top:9px; max-width:270px; line-height:1.5;}
+  .hero-cta{display:flex; gap:9px; margin-top:18px;}
+  .btn{
+    border:none; cursor:pointer; font-family:inherit; font-weight:600;
+    border-radius:12px; padding:11px 16px; font-size:12.5px;
+    display:flex; align-items:center; gap:7px; justify-content:center;
+    transition:transform .15s, box-shadow .2s, filter .2s;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:var(--grad-primary); color:#00151A; box-shadow:var(--glow-cyan);}
+  .btn-primary:hover{filter:brightness(1.08); box-shadow:0 0 40px rgba(0,242,254,.32);}
+  .btn-ghost{background:var(--bg-surface-hover); color:var(--text-primary); border:1px solid var(--border-subtle);}
+  .btn-ghost:hover{border-color:var(--border-glow);}
+  .btn-emerald{background:var(--grad-emerald); color:#02210F; box-shadow:var(--glow-emerald);}
+  .btn-block{width:100%;}
+  .btn-sm{padding:8px 12px; font-size:11.5px; border-radius:10px;}
+
+  .stats-row{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:20px;}
+  .stat-tile{
+    background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:var(--radius-sm);
+    padding:13px 14px;
+  }
+  .stat-tile .label{font-size:10.5px; color:var(--text-tertiary); font-family:'JetBrains Mono',monospace;}
+  .stat-tile .value{font-size:16px; font-weight:700; margin-top:5px; letter-spacing:-.01em;}
+  .stat-tile .value.cyan{color:var(--cyan);}
+  .stat-tile .value.emerald{color:var(--emerald);}
+
+  .agent-card{
+    display:flex; align-items:center; gap:12px; padding:14px; margin-bottom:10px;
+  }
+  .agent-icon{
+    width:42px; height:42px; border-radius:12px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:17px;
+  }
+  .agent-info{flex:1; min-width:0;}
+  .agent-info .name{font-size:13px; font-weight:700;}
+  .agent-info .price{font-size:11px; color:var(--text-tertiary); font-family:'JetBrains Mono',monospace; margin-top:2px;}
+
+  /* ===== DASHBOARD SCREEN ===== */
+  .nav-strip{
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:11px; color:var(--text-tertiary); font-family:'JetBrains Mono',monospace;
+    padding:2px 2px 14px; border-bottom:1px solid var(--border-subtle); margin-bottom:16px;
+  }
+  .badge-live{display:inline-flex; align-items:center; gap:5px; color:var(--emerald); font-weight:600;}
+  .badge-live .d{width:6px;height:6px;border-radius:50%;background:var(--emerald); box-shadow:0 0 6px var(--emerald); animation:pulse-dot 2s infinite;}
+
+  .gauge-wrap{display:flex; flex-direction:column; align-items:center; padding:20px 16px;}
+  .gauge{position:relative; width:130px; height:130px;}
+  .gauge svg{transform:rotate(-90deg);}
+  .gauge-center{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+  .gauge-center .num{font-size:26px; font-weight:800; font-family:'JetBrains Mono',monospace;}
+  .gauge-center .lbl{font-size:9.5px; color:var(--text-tertiary); margin-top:2px;}
+  .risk-tag{
+    margin-top:12px; font-size:11px; font-weight:700; padding:5px 12px; border-radius:20px;
+    background:rgba(0,230,118,.12); color:var(--emerald); border:1px solid rgba(0,230,118,.25);
+  }
+
+  .chart-card .chart-head{display:flex; justify-content:space-between; align-items:baseline;}
+  .chart-card .big-num{font-size:19px; font-weight:800; font-family:'JetBrains Mono',monospace;}
+  .chart-card .delta{font-size:11.5px; color:var(--emerald); font-weight:600;}
+  .timeframes{display:flex; gap:6px; margin-top:12px;}
+  .tf{
+    font-size:10.5px; padding:5px 10px; border-radius:8px; color:var(--text-tertiary);
+    cursor:pointer; font-family:'JetBrains Mono',monospace; transition:.15s;
+  }
+  .tf.active{background:var(--bg-surface-hover); color:var(--cyan);}
+
+  table.data-table{width:100%; border-collapse:collapse; margin-top:10px; font-size:11.5px;}
+  table.data-table th{
+    text-align:left; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--text-tertiary);
+    font-weight:500; padding:6px 4px; border-bottom:1px solid var(--border-subtle);
+  }
+  table.data-table td{padding:9px 4px; border-bottom:1px solid rgba(255,255,255,.04); vertical-align:middle;}
+  .pair-cell{display:flex; align-items:center; gap:7px; font-weight:600;}
+  .coin-dot{width:20px;height:20px;border-radius:50%; flex-shrink:0;}
+  .pct-up{color:var(--emerald); font-weight:700;}
+  .mini-btn{
+    font-size:10px; padding:5px 9px; border-radius:8px; border:1px solid var(--border-glow);
+    background:rgba(0,242,254,.08); color:var(--cyan); cursor:pointer; font-weight:600; white-space:nowrap;
+  }
+  .mini-btn:hover{background:rgba(0,242,254,.16);}
+  .mini-btn.emerald-o{border-color:rgba(0,230,118,.35); background:rgba(0,230,118,.08); color:var(--emerald);}
+
+  /* ===== STUDIO SCREEN ===== */
+  .chat-window{display:flex; flex-direction:column; gap:12px; padding-bottom:6px;}
+  .msg{max-width:86%; padding:11px 13px; border-radius:14px; font-size:12.5px; line-height:1.5;}
+  .msg.ai{background:var(--bg-surface); border:1px solid var(--border-subtle); border-bottom-left-radius:4px; align-self:flex-start;}
+  .msg.user{background:linear-gradient(135deg,rgba(0,242,254,.16),rgba(79,172,254,.10)); border:1px solid var(--border-glow); border-bottom-right-radius:4px; align-self:flex-end;}
+  .x402-badge{
+    display:inline-flex; align-items:center; gap:5px; margin-top:8px; font-size:10px;
+    color:var(--cyan); background:rgba(0,242,254,.08); border:1px solid var(--border-glow);
+    padding:4px 9px; border-radius:20px; font-family:'JetBrains Mono',monospace;
+  }
+  .typing{display:flex; gap:4px; padding:4px 0;}
+  .typing span{width:5px;height:5px;border-radius:50%;background:var(--text-tertiary); animation:blink 1.2s infinite;}
+  .typing span:nth-child(2){animation-delay:.2s;} .typing span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,80%,100%{opacity:.2;} 40%{opacity:1;}}
+
+  .composer{
+    display:flex; gap:8px; align-items:center; margin-top:14px;
+    background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:14px; padding:6px 6px 6px 14px;
+  }
+  .composer input{
+    flex:1; background:transparent; border:none; outline:none; color:var(--text-primary); font-size:12.5px; font-family:inherit;
+  }
+  .composer input::placeholder{color:var(--text-tertiary);}
+  .send-btn{
+    width:34px;height:34px; border-radius:10px; background:var(--grad-primary); border:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .send-btn svg{width:15px;height:15px; stroke:#00151A;}
+
+  .pipeline-step{
+    display:flex; gap:10px; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.05);
+  }
+  .pipeline-step:last-child{border-bottom:none;}
+  .step-num{
+    width:22px;height:22px; border-radius:50%; background:var(--bg-surface-hover); border:1px solid var(--border-glow);
+    display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:var(--cyan); flex-shrink:0;
+  }
+  .step-info .t{font-size:12px; font-weight:600;}
+  .step-info .s{font-size:10.5px; color:var(--text-tertiary); margin-top:2px;}
+
+  /* ===== AUDIT SCREEN ===== */
+  .topic-pill{
+    display:inline-flex; align-items:center; gap:7px; font-family:'JetBrains Mono',monospace; font-size:10.5px;
+    color:var(--text-secondary); background:var(--bg-surface); border:1px solid var(--border-subtle);
+    padding:6px 11px; border-radius:20px; margin-bottom:14px;
+  }
+  .audit-row{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:11px 0; border-bottom:1px solid rgba(255,255,255,.05); font-size:11.5px;
+  }
+  .audit-row:first-child{animation:rowIn .5s ease;}
+  @keyframes rowIn{from{opacity:0; transform:translateY(-8px); background:rgba(0,242,254,.08);} to{opacity:1; transform:translateY(0);}}
+  .audit-left{display:flex; flex-direction:column; gap:2px;}
+  .audit-left .id{font-family:'JetBrains Mono',monospace; color:var(--text-secondary); font-size:11px;}
+  .audit-left .svc{font-size:10px; color:var(--text-tertiary);}
+  .audit-right{text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:3px;}
+  .audit-right .fee{font-family:'JetBrains Mono',monospace; font-weight:600; font-size:11.5px;}
+  .status-chip{font-size:9px; padding:2px 7px; border-radius:8px; display:inline-flex; align-items:center; gap:4px; font-weight:600;}
+  .status-chip.settled{background:rgba(0,230,118,.12); color:var(--emerald);}
+  .status-chip .d{width:5px;height:5px;border-radius:50%; background:currentColor;}
+
+  .bars{display:flex; align-items:flex-end; gap:6px; height:80px; margin-top:14px;}
+  .bar{flex:1; background:linear-gradient(180deg, var(--cyan), rgba(79,172,254,.15)); border-radius:5px 5px 0 0; opacity:.85; transition:height .6s cubic-bezier(.2,.8,.2,1);}
+
+  /* ===== ORDERS SCREEN ===== */
+  .price-panel{display:flex; justify-content:space-between; align-items:flex-end;}
+  .price-panel .price{font-size:22px; font-weight:800; font-family:'JetBrains Mono',monospace;}
+  .toggle-pair{display:flex; background:var(--bg-surface-hover); border-radius:10px; padding:3px; margin-top:14px;}
+  .toggle-pair div{flex:1; text-align:center; padding:8px; font-size:11.5px; font-weight:600; border-radius:8px; cursor:pointer; color:var(--text-tertiary);}
+  .toggle-pair div.active{background:var(--grad-primary); color:#00151A;}
+  .field{margin-top:14px;}
+  .field label{font-size:10.5px; color:var(--text-tertiary); font-family:'JetBrains Mono',monospace;}
+  .field input, .field select{
+    width:100%; margin-top:6px; background:var(--bg-surface-hover); border:1px solid var(--border-subtle);
+    border-radius:10px; padding:11px 12px; color:var(--text-primary); font-size:13px; font-family:'JetBrains Mono',monospace; outline:none;
+  }
+  .field input:focus{border-color:var(--border-glow);}
+  .expiry-row{display:flex; gap:8px; margin-top:6px;}
+  .expiry-row div{flex:1; text-align:center; padding:8px; font-size:11px; border-radius:8px; background:var(--bg-surface-hover); border:1px solid var(--border-subtle); cursor:pointer; color:var(--text-tertiary);}
+  .expiry-row div.active{border-color:var(--border-glow); color:var(--cyan);}
+
+  .order-row{display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.05); font-size:11.5px;}
+  .order-row:last-child{border-bottom:none;}
+  .pending-chip{background:rgba(255,145,0,.12); color:var(--warn); font-size:9px; padding:2px 7px; border-radius:8px; font-weight:600;}
+  .cancel-btn{font-size:10px; color:var(--danger); background:none; border:1px solid rgba(255,82,82,.3); padding:5px 9px; border-radius:8px; cursor:pointer;}
+  .cancel-btn:hover{background:rgba(255,82,82,.1);}
+
+  /* ===== Bottom Nav ===== */
+  .bottom-nav{
+    position:absolute; left:0; right:0; bottom:0;
+    display:flex; justify-content:space-around; align-items:center;
+    padding:14px 10px 20px; background:linear-gradient(0deg, rgba(8,9,13,.98) 60%, rgba(8,9,13,.75));
+    backdrop-filter:blur(10px); border-top:1px solid var(--border-subtle);
+  }
+  .nav-item{
+    display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer;
+    color:var(--text-tertiary); transition:color .2s; position:relative; padding:4px 8px;
+  }
+  .nav-item svg{width:20px;height:20px; stroke:currentColor; fill:none; transition:.2s;}
+  .nav-item span{font-size:9.5px; font-weight:600;}
+  .nav-item.active{color:var(--cyan);}
+  .nav-item.active svg{filter:drop-shadow(0 0 6px rgba(0,242,254,.6));}
+
+  /* ===== Modal ===== */
+  .modal-overlay{
+    position:absolute; inset:0; background:rgba(4,5,8,.72); backdrop-filter:blur(4px);
+    display:none; align-items:flex-end; justify-content:center; z-index:50;
+  }
+  .modal-overlay.show{display:flex; animation:fadeIn .2s ease;}
+  @keyframes fadeIn{from{opacity:0;} to{opacity:1;}}
+  .modal{
+    width:100%; background:var(--bg-surface); border:1px solid var(--border-subtle); border-bottom:none;
+    border-radius:24px 24px 0 0; padding:24px 22px 30px; animation:slideUp .3s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes slideUp{from{transform:translateY(100%);} to{transform:translateY(0);}}
+  .modal-handle{width:36px;height:4px;background:var(--border-subtle); border-radius:4px; margin:0 auto 18px;}
+  .modal h3{font-size:16px; font-weight:700;}
+  .modal .sub{font-size:11.5px; color:var(--text-tertiary); margin-top:4px;}
+  .proof-line{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid rgba(255,255,255,.05); font-size:11.5px;}
+  .proof-line span:first-child{color:var(--text-tertiary);}
+  .proof-line span:last-child{font-family:'JetBrains Mono',monospace; font-weight:600;}
+  .close-x{position:absolute; top:20px; right:20px; cursor:pointer; color:var(--text-tertiary);}
+
+  ::selection{background:rgba(0,242,254,.25);}
+  @media (max-width:460px){ body{padding:0;} .app{border-radius:0; height:100vh;} }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#00151A" stroke-width="2.5"><path d="M4 17L10 11L14 15L20 7"/><path d="M14 7h6v6"/></svg>
+      </div>
+      <div class="brand-name">STRATA<span>402</span></div>
+    </div>
+    <div class="header-actions">
+      <div class="icon-btn" title="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+        <div class="dot-live"></div>
+      </div>
+      <div class="avatar">SA</div>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- ============ SCREEN 1: HOME ============ -->
+    <section class="screen active" id="screen-home">
+      <div class="hero">
+        <div class="eyebrow">🤖 AUTONOMOUS DEFI AGENT · HEDERA</div>
+        <h1>Institutional risk intelligence, paid per call.</h1>
+        <p>Real Mirror Node data, x402 micropayments settled via Blocky402, every request audited on HCS.</p>
+        <div class="hero-cta">
+          <button class="btn btn-primary" onclick="goTo('studio')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            Launch AI Studio
+          </button>
+          <button class="btn btn-ghost" onclick="goTo('audit')">View HCS Feed</button>
+        </div>
+      </div>
+
+      <div class="stats-row stagger">
+        <div class="stat-tile"><div class="label">TOTAL NAV SCANNED</div><div class="value">$14,285,900</div></div>
+        <div class="stat-tile"><div class="label">x402 TX SETTLED</div><div class="value cyan">128,490 HBAR</div></div>
+        <div class="stat-tile"><div class="label">AVG YIELD (APY)</div><div class="value emerald">18.4%</div></div>
+        <div class="stat-tile"><div class="label">HCS TOPIC ID</div><div class="value" style="font-size:13px">0.0.491028</div></div>
+      </div>
+
+      <div class="section-title">Agent Marketplace <a onclick="goTo('audit')" style="cursor:pointer">HCS‑14 registry →</a></div>
+      <div class="stagger">
+        <div class="card agent-card">
+          <div class="agent-icon" style="background:rgba(0,242,254,.12); color:var(--cyan)">◆</div>
+          <div class="agent-info"><div class="name">Strata402 Core Agent</div><div class="price">0.15 HBAR / call</div></div>
+          <button class="mini-btn" onclick="openPayment('Core Agent','0.15')">Try demo</button>
+        </div>
+        <div class="card agent-card">
+          <div class="agent-icon" style="background:rgba(0,230,118,.12); color:var(--emerald)">⟲</div>
+          <div class="agent-info"><div class="name">SaucerSwap LP Optimizer</div><div class="price">0.10 HBAR / call</div></div>
+          <button class="mini-btn emerald-o" onclick="openPayment('LP Optimizer','0.10')">Try demo</button>
+        </div>
+        <div class="card agent-card">
+          <div class="agent-icon" style="background:rgba(255,145,0,.12); color:var(--warn)">⛨</div>
+          <div class="agent-info"><div class="name">Bonzo Risk Guard</div><div class="price">0.08 HBAR / call</div></div>
+          <button class="mini-btn" style="border-color:rgba(255,145,0,.35); background:rgba(255,145,0,.08); color:var(--warn)" onclick="openPayment('Risk Guard','0.08')">Try demo</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN 2: DASHBOARD ============ -->
+    <section class="screen" id="screen-dashboard">
+      <div class="nav-strip">
+        <span>NAV <b style="color:var(--text-primary)">$45,820.50</b></span>
+        <span class="badge-live"><span class="d"></span>TESTNET</span>
+      </div>
+
+      <div class="card" style="padding:16px 8px;">
+        <div class="gauge-wrap">
+          <div class="gauge">
+            <svg width="130" height="130">
+              <circle cx="65" cy="65" r="54" stroke="rgba(255,255,255,.06)" stroke-width="10" fill="none"/>
+              <circle cx="65" cy="65" r="54" stroke="url(#g1)" stroke-width="10" fill="none"
+                stroke-linecap="round" stroke-dasharray="339" stroke-dashoffset="244" id="gaugeArc"/>
+              <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#00E676"/><stop offset="100%" stop-color="#1DE9B6"/>
+              </linearGradient></defs>
+            </svg>
+            <div class="gauge-center"><div class="num" id="gaugeNum">28</div><div class="lbl">RISK / 100</div></div>
+          </div>
+          <div class="risk-tag">● Low Risk</div>
+        </div>
+      </div>
+
+      <div class="card chart-card" style="margin-top:14px;">
+        <div class="chart-head">
+          <div>
+            <div class="eyebrow">NET ASSET VALUE</div>
+            <div class="big-num">$45,820.50</div>
+          </div>
+          <div class="delta">▲ +7.54% (24h)</div>
+        </div>
+        <svg viewBox="0 0 300 90" width="100%" height="90" style="margin-top:10px; overflow:visible;">
+          <defs>
+            <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(0,242,254,.35)"/>
+              <stop offset="100%" stop-color="rgba(0,242,254,0)"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,65 L25,58 L50,62 L75,45 L100,50 L125,32 L150,38 L175,28 L200,34 L225,20 L250,24 L275,10 L300,14 L300,90 L0,90 Z" fill="url(#areaFill)"/>
+          <path d="M0,65 L25,58 L50,62 L75,45 L100,50 L125,32 L150,38 L175,28 L200,34 L225,20 L250,24 L275,10 L300,14" fill="none" stroke="var(--cyan)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 6px rgba(0,242,254,.6))"/>
+          <circle cx="300" cy="14" r="4" fill="#fff" style="filter:drop-shadow(0 0 6px #00F2FE)"/>
+        </svg>
+        <div class="timeframes">
+          <div class="tf">1D</div><div class="tf">1W</div><div class="tf active">1M</div><div class="tf">1Y</div><div class="tf">Live</div>
+        </div>
+      </div>
+
+      <button class="btn btn-emerald btn-block" style="margin-top:14px;" onclick="openPayment('Portfolio Health Scan','0.15')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h7l-1 8 11-14h-7l1-6z"/></svg>
+        Run AI Portfolio Health Scan
+      </button>
+
+      <div class="section-title">SaucerSwap V2 Pools</div>
+      <div class="card">
+        <table class="data-table">
+          <tr><th>Pool</th><th>TVL</th><th>APY</th><th></th></tr>
+          <tr>
+            <td><div class="pair-cell"><span class="coin-dot" style="background:linear-gradient(135deg,#8247e5,#c2a2ff)"></span>HBAR/USDC</div></td>
+            <td>$4.2M</td><td class="pct-up">24.2%</td>
+            <td><button class="mini-btn">Deposit</button></td>
+          </tr>
+          <tr>
+            <td><div class="pair-cell"><span class="coin-dot" style="background:linear-gradient(135deg,#00E676,#1DE9B6)"></span>HBAR/SAUCE</div></td>
+            <td>$1.8M</td><td class="pct-up">38.5%</td>
+            <td><button class="mini-btn">Deposit</button></td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="section-title">Bonzo Lending Matrix</div>
+      <div class="card">
+        <table class="data-table">
+          <tr><th>Asset</th><th>Supply</th><th>Borrow</th><th></th></tr>
+          <tr>
+            <td><div class="pair-cell"><span class="coin-dot" style="background:linear-gradient(135deg,#4FACFE,#00F2FE)"></span>HBAR</div></td>
+            <td class="pct-up">6.8%</td><td>9.2%</td>
+            <td><button class="mini-btn emerald-o">Supply</button></td>
+          </tr>
+          <tr>
+            <td><div class="pair-cell"><span class="coin-dot" style="background:linear-gradient(135deg,#2775CA,#5AC1FF)"></span>USDC</div></td>
+            <td class="pct-up">11.4%</td><td>14.1%</td>
+            <td><button class="mini-btn emerald-o">Supply</button></td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN 3: STUDIO ============ -->
+    <section class="screen" id="screen-studio">
+      <div class="eyebrow">💬 AI STRATEGY ASSISTANT <span class="badge-live" style="margin-left:4px"><span class="d"></span>x402 ACTIVE</span></div>
+
+      <div class="chat-window" id="chatWindow">
+        <div class="msg ai">
+          Hi — I noticed 5,000 idle HBAR. SaucerSwap HBAR/USDC is at 24.2% APY, Bonzo supply is 6.8%. Want a balanced yield strategy?
+          <div class="x402-badge">⚡ Settled 0.15 HBAR via Blocky402</div>
+        </div>
+      </div>
+
+      <div class="composer">
+        <input type="text" id="chatInput" placeholder="Type your prompt…" onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="send-btn" onclick="sendChat()">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+
+      <div class="section-title">Strategy Pipeline</div>
+      <div class="card" id="pipelineCard">
+        <div class="pipeline-step">
+          <div class="step-num">1</div>
+          <div class="step-info"><div class="t">Swap 2,500 HBAR → USDC</div><div class="s">SaucerSwap V2 Router · Est. slippage 0.12%</div></div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-num">2</div>
+          <div class="step-info"><div class="t">Deposit LP to HBAR/USDC</div><div class="s">SaucerSwap LP · Projected APY 21.8%</div></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div class="eyebrow">HCS AUDIT HASH</div>
+          <div class="mono" style="font-size:11.5px; color:var(--text-secondary)">0x8f2a…c4b9</div>
+        </div>
+        <span class="status-chip settled"><span class="d"></span>Verified</span>
+      </div>
+
+      <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openPayment('Strategy Execution','0.15')">
+        🚀 Approve &amp; Execute Strategy
+      </button>
+    </section>
+
+    <!-- ============ SCREEN 4: AUDIT ============ -->
+    <section class="screen" id="screen-audit">
+      <div class="topic-pill">🔍 HCS Topic <b style="color:var(--text-primary)">0.0.491028</b></div>
+
+      <div class="card">
+        <div class="eyebrow">x402 PAYMENT VOLUME / HR</div>
+        <div class="bars" id="volBars"></div>
+      </div>
+
+      <div class="section-title">Audit Log <span class="badge-live"><span class="d"></span>Live</span></div>
+      <div class="card" id="auditCard">
+        <div id="auditRows"></div>
+      </div>
+
+      <div class="hero-cta" style="margin-top:14px;">
+        <button class="btn btn-ghost" onclick="pushAuditRow()">🔄 Refresh feed</button>
+        <button class="btn btn-ghost" onclick="alert('CSV export — illustrative action')">📥 Export CSV</button>
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:10px;" onclick="window.alert('Would open https://hashscan.io/testnet/topic/0.0.491028')">
+        🔗 View Topic on HashScan
+      </button>
+    </section>
+
+    <!-- ============ SCREEN 5: ORDERS ============ -->
+    <section class="screen" id="screen-orders">
+      <div class="card">
+        <div class="eyebrow">HBAR / USDC</div>
+        <div class="price-panel">
+          <div><div class="price">$0.0782</div><div style="font-size:11px; color:var(--emerald); margin-top:3px;">▲ +5.4% (24h)</div></div>
+        </div>
+        <svg viewBox="0 0 300 60" width="100%" height="60" style="margin-top:12px;">
+          <path d="M0,40 L30,35 L60,44 L90,28 L120,33 L150,20 L180,26 L210,15 L240,22 L270,10 L300,16" fill="none" stroke="var(--emerald)" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <div class="section-title">Create Limit Order</div>
+      <div class="card">
+        <div class="toggle-pair">
+          <div class="active" id="buyTab" onclick="setSide('buy')">Buy HBAR</div>
+          <div id="sellTab" onclick="setSide('sell')">Sell HBAR</div>
+        </div>
+        <div class="field"><label>TARGET PRICE (USDC)</label><input type="text" id="ordPrice" value="0.0720"></div>
+        <div class="field"><label>AMOUNT (HBAR)</label><input type="text" id="ordAmount" value="10,000"></div>
+        <div class="field"><label>EXPIRY</label>
+          <div class="expiry-row">
+            <div class="active">7 Days</div><div>30 Days</div><div>Never</div>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-block" style="margin-top:16px;" onclick="createOrder()">🚀 Create Onchain Limit Order</button>
+      </div>
+
+      <div class="section-title">Active Orders</div>
+      <div class="card" id="ordersCard">
+        <div id="ordersList"></div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <div class="nav-item active" data-tab="home" onclick="goTo('home')">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      <span>Home</span>
+    </div>
+    <div class="nav-item" data-tab="dashboard" onclick="goTo('dashboard')">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      <span>Dashboard</span>
+    </div>
+    <div class="nav-item" data-tab="studio" onclick="goTo('studio')">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+      <span>Studio</span>
+    </div>
+    <div class="nav-item" data-tab="audit" onclick="goTo('audit')">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg>
+      <span>Audit</span>
+    </div>
+    <div class="nav-item" data-tab="orders" onclick="goTo('orders')">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>
+      <span>Orders</span>
+    </div>
+  </div>
+
+  <!-- PAYMENT MODAL -->
+  <div class="modal-overlay" id="payModal">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <div class="eyebrow">402 PAYMENT REQUIRED</div>
+          <h3 id="payTitle">Core Agent</h3>
+          <div class="sub">Settled via Blocky402 · Hedera testnet</div>
+        </div>
+        <div class="brand-mark" style="width:36px;height:36px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00151A" stroke-width="2.5"><path d="M4 17L10 11L14 15L20 7"/><path d="M14 7h6v6"/></svg>
+        </div>
+      </div>
+      <div style="margin-top:18px;">
+        <div class="proof-line"><span>Amount</span><span id="payAmount">0.15 HBAR</span></div>
+        <div class="proof-line"><span>Network</span><span>hedera:testnet</span></div>
+        <div class="proof-line"><span>Scheme</span><span>exact</span></div>
+        <div class="proof-line"><span>Status</span><span id="payStatus" style="color:var(--warn)">awaiting signature</span></div>
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:18px;" onclick="confirmPayment()" id="payBtn">Sign &amp; Pay</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:9px;" onclick="closeModal('payModal')">Cancel</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ---- Navigation ----
+  function goTo(name){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById('screen-'+name).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.tab===name));
+  }
+
+  // ---- Animated gauge on load ----
+  window.addEventListener('load', ()=>{
+    const arc = document.getElementById('gaugeArc');
+    arc.style.transition = 'stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1)';
+    setTimeout(()=>{ arc.style.strokeDashoffset = 244; }, 150);
+  });
+
+  // ---- Payment modal ----
+  let payCallback = null;
+  function openPayment(name, amount){
+    document.getElementById('payTitle').textContent = name;
+    document.getElementById('payAmount').textContent = amount + ' HBAR';
+    document.getElementById('payStatus').textContent = 'awaiting signature';
+    document.getElementById('payStatus').style.color = 'var(--warn)';
+    document.getElementById('payBtn').textContent = 'Sign & Pay';
+    document.getElementById('payBtn').disabled = false;
+    document.getElementById('payModal').classList.add('show');
+  }
+  function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+  function confirmPayment(){
+    const btn = document.getElementById('payBtn');
+    const status = document.getElementById('payStatus');
+    btn.textContent = 'Settling…';
+    btn.disabled = true;
+    setTimeout(()=>{
+      status.textContent = 'settled ✓';
+      status.style.color = 'var(--emerald)';
+      btn.textContent = 'Done';
+      setTimeout(()=>closeModal('payModal'), 700);
+    }, 900);
+  }
+
+  // ---- Studio chat ----
+  function sendChat(){
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if(!text) return;
+    const win = document.getElementById('chatWindow');
+    const userMsg = document.createElement('div');
+    userMsg.className = 'msg user';
+    userMsg.textContent = text;
+    win.appendChild(userMsg);
+    input.value = '';
+    win.scrollTop = win.scrollHeight;
+
+    const typing = document.createElement('div');
+    typing.className = 'msg ai';
+    typing.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+    win.appendChild(typing);
+    win.scrollTop = win.scrollHeight;
+
+    setTimeout(()=>{
+      typing.innerHTML = 'Strategy ready — preview the execution pipeline below.<div class="x402-badge">⚡ Settled 0.15 HBAR via Blocky402</div>';
+    }, 1100);
+  }
+
+  // ---- Audit feed ----
+  const auditPool = [
+    {id:'0.0.381920', svc:'Risk Analysis', fee:'0.15'},
+    {id:'0.0.412093', svc:'Saucer Yield', fee:'0.10'},
+    {id:'0.0.198234', svc:'Bonzo Audit', fee:'0.08'},
+    {id:'0.0.294110', svc:'Risk Analysis', fee:'0.15'},
+  ];
+  function pushAuditRow(){
+    const el = document.getElementById('auditRows');
+    const pick = auditPool[Math.floor(Math.random()*auditPool.length)];
+    const now = new Date();
+    const time = now.toTimeString().slice(0,8);
+    const row = document.createElement('div');
+    row.className = 'audit-row';
+    row.innerHTML = `<div class="audit-left"><div class="id">${pick.id}</div><div class="svc">${pick.svc} · ${time}</div></div>
+      <div class="audit-right"><div class="fee">${pick.fee} HBAR</div><span class="status-chip settled"><span class="d"></span>Settled</span></div>`;
+    el.prepend(row);
+    if(el.children.length > 6) el.removeChild(el.lastChild);
+  }
+  for(let i=0;i<4;i++) pushAuditRow();
+  setInterval(pushAuditRow, 6000);
+
+  // ---- Volume bars ----
+  const barsEl = document.getElementById('volBars');
+  const heights = [30,55,40,70,50,85,60,45,75,90,65,50];
+  heights.forEach(h=>{
+    const b = document.createElement('div');
+    b.className='bar'; b.style.height='4px';
+    barsEl.appendChild(b);
+    setTimeout(()=>{ b.style.height = h+'%'; }, 200);
+  });
+
+  // ---- Orders screen ----
+  function setSide(side){
+    document.getElementById('buyTab').classList.toggle('active', side==='buy');
+    document.getElementById('sellTab').classList.toggle('active', side==='sell');
+  }
+  let orderSeq = 1043;
+  const ordersList = document.getElementById('ordersList');
+  function renderOrder(id, price, amount){
+    const row = document.createElement('div');
+    row.className = 'order-row';
+    row.id = 'ord-'+id;
+    row.innerHTML = `<div><div style="font-weight:600">#${id} · HBAR/USDC</div>
+      <div style="color:var(--text-tertiary); font-size:10.5px; margin-top:2px;">$${price} USDC · ${amount} HBAR</div></div>
+      <div style="display:flex; align-items:center; gap:8px;"><span class="pending-chip">Pending</span>
+      <button class="cancel-btn" onclick="cancelOrder(${id})">Cancel</button></div>`;
+    ordersList.prepend(row);
+  }
+  function cancelOrder(id){
+    const row = document.getElementById('ord-'+id);
+    if(row) row.remove();
+  }
+  function createOrder(){
+    const price = document.getElementById('ordPrice').value || '0.0720';
+    const amount = document.getElementById('ordAmount').value || '10,000';
+    orderSeq++;
+    renderOrder(orderSeq, price, amount);
+  }
+  renderOrder(1042, '0.0720', '10,000');
+</script>
+
+</body>
+</html>

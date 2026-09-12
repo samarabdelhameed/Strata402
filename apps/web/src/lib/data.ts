@@ -104,6 +104,129 @@ export async function readHealth(): Promise<ServiceStatus> {
   };
 }
 
+/** Real Mirror Node transaction history (with transfers), newest first, deduped. */
+export interface MirrorTransaction {
+  transactionId: string;
+  consensusTimestamp: string;
+  transfers: Array<{ accountId: string; amountTinybars: number }>;
+}
+
+export async function readTransactions(
+  accountId: string,
+  limit = 100,
+): Promise<{ txs: MirrorTransaction[]; error?: string }> {
+  try {
+    const url =
+      `${MIRROR_BASE_URL}/api/v1/transactions?account.id=${encodeURIComponent(accountId)}` +
+      `&limit=${limit}&order=desc`;
+    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) });
+    if (!res.ok) {
+      return { txs: [], error: `mirror transaction read returned ${res.status}` };
+    }
+    const data = (await res.json()) as { transactions?: Array<Record<string, unknown>> };
+    const seen = new Set<string>();
+    const txs: MirrorTransaction[] = [];
+    for (const raw of data.transactions ?? []) {
+      const transactionId = typeof raw.transaction_id === "string" ? raw.transaction_id : "";
+      if (transactionId === "" || seen.has(transactionId)) continue;
+      seen.add(transactionId);
+      const transfers = Array.isArray(raw.transfers)
+        ? (raw.transfers as Array<Record<string, unknown>>)
+            .map((t) => ({
+              accountId: typeof t.account === "string" ? t.account : "",
+              amountTinybars: Number(t.amount) || 0,
+            }))
+            .filter((t) => t.accountId !== "")
+        : [];
+      txs.push({
+        transactionId,
+        consensusTimestamp:
+          typeof raw.consensus_timestamp === "string" ? raw.consensus_timestamp : "",
+        transfers,
+      });
+    }
+    return { txs };
+  } catch (error) {
+    return { txs: [], error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** Real account activity: inflow/outflow/net HBAR and time-ordered volume buckets. */
+export interface AccountActivityView {
+  ok: boolean;
+  accountId: string;
+  total: number;
+  inflowHbar: string;
+  outflowHbar: string;
+  netHbar: string;
+  fromTs: number | null;
+  toTs: number | null;
+  buckets: Array<{ label: string; count: number }>;
+  error?: string;
+}
+
+export async function readAccountActivity(
+  accountId: string,
+  bucketCount = 12,
+  limit = 100,
+): Promise<AccountActivityView> {
+  const { txs, error } = await readTransactions(accountId, limit);
+  const base: AccountActivityView = {
+    ok: error === undefined && txs.length > 0,
+    accountId,
+    total: txs.length,
+    inflowHbar: "0",
+    outflowHbar: "0",
+    netHbar: "0",
+    fromTs: null,
+    toTs: null,
+    buckets: [],
+    error,
+  };
+  if (error || txs.length === 0) return base;
+
+  const timestamps = txs
+    .map((t) => Number(t.consensusTimestamp))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (timestamps.length === 0) return base;
+  const fromTs = Math.min(...timestamps);
+  const toTs = Math.max(...timestamps);
+
+  let inflow = 0;
+  let outflow = 0;
+  for (const tx of txs) {
+    for (const transfer of tx.transfers) {
+      if (transfer.accountId !== accountId) continue;
+      if (transfer.amountTinybars > 0) inflow += transfer.amountTinybars;
+      else outflow += -transfer.amountTinybars;
+    }
+  }
+  const hbar = (n: number) => (n / 1e8).toFixed(4).replace(/\.?0+$/, "");
+
+  const span = Math.max(toTs - fromTs, 1);
+  const count = Math.max(Math.min(bucketCount, 24), 2);
+  const step = span / count;
+  const buckets = Array.from({ length: count }, (_, i) => ({
+    label: new Date((fromTs + i * step) * 1000).toISOString().slice(11, 16),
+    count: 0,
+  }));
+  for (const ts of timestamps) {
+    const idx = Math.min(Math.floor((ts - fromTs) / step), count - 1);
+    buckets[idx].count += 1;
+  }
+
+  return {
+    ...base,
+    ok: true,
+    inflowHbar: hbar(inflow),
+    outflowHbar: hbar(outflow),
+    netHbar: hbar(inflow - outflow),
+    fromTs,
+    toTs,
+    buckets,
+  };
+}
+
 /** Real Mirror Node account snapshot: existence, balance, and the last message. */
 export interface MirrorAccountView {
   accountId: string;
@@ -156,6 +279,20 @@ export async function readAccountFromMirror(accountId: string): Promise<MirrorAc
       base.balanceTimestamp =
         typeof balance.timestamp === "string" ? balance.timestamp : null;
     }
+    const history = await readTransactions(accountId, 100);
+    base.transactionCount = history.txs.length;
+    let inflow = 0;
+    let outflow = 0;
+    for (const tx of history.txs) {
+      for (const transfer of tx.transfers) {
+        if (transfer.accountId !== accountId) continue;
+        if (transfer.amountTinybars > 0) inflow += transfer.amountTinybars;
+        else outflow += -transfer.amountTinybars;
+      }
+    }
+    const hbar = (n: number) => (n / 1e8).toFixed(4).replace(/\.?0+$/, "");
+    base.recent30dHbarIn = hbar(inflow);
+    base.recent30dHbarOut = hbar(outflow);
     return base;
   } catch (error) {
     base.error = error instanceof Error ? error.message : String(error);

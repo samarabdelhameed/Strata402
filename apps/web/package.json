@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hiero-ledger/sdk": "2.85.0",
     "@strata402/consuming-agent": "workspace:*",
     "@strata402/x402-sdk": "workspace:*",
     "next": "14.2.15",

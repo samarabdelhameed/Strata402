@@ -1,6 +1,7 @@
 "use client";
 
-import { Shell } from "@/components/Shell";
+import { useMemo } from "react";
+import { AppFrame } from "@/components/AppFrame";
 import { useApi } from "@/hooks/useApi";
 
 interface HcsRead {
@@ -16,91 +17,180 @@ interface HcsRead {
   error?: string;
 }
 
+interface AuditEvent {
+  requestId?: string;
+  endpoint?: string;
+  status?: string;
+  paymentTxId?: string | null;
+  blockTimestamp?: string | null;
+  at?: string;
+}
+
+function parseEvent(raw: string): AuditEvent | null {
+  try {
+    const parsed = JSON.parse(raw) as AuditEvent;
+    if (typeof parsed.requestId === "string") return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function fmtTime(consensusTimestamp: string): string {
+  const sec = Number(consensusTimestamp);
+  if (!Number.isFinite(sec) || sec <= 0) return consensusTimestamp;
+  return new Date(sec * 1000).toISOString().replace("T", " ").slice(0, 19);
+}
+
+function volumeBuckets(messages: HcsRead["messages"], n = 12) {
+  const ts = messages.map((m) => Number(m.consensusTimestamp)).filter((t) => Number.isFinite(t) && t > 0);
+  if (ts.length === 0) return [];
+  const from = Math.min(...ts);
+  const to = Math.max(...ts);
+  const span = Math.max(to - from, 1);
+  const step = span / n;
+  const counts = Array<number>(n).fill(0);
+  for (const t of ts) {
+    const i = Math.min(Math.floor((t - from) / step), n - 1);
+    counts[i] += 1;
+  }
+  const max = Math.max(...counts, 1);
+  return counts.map((c, i) => ({
+    label: new Date((from + i * step) * 1000).toISOString().slice(11, 16),
+    pct: Math.max(2, Math.round((c / max) * 80)),
+    count: c,
+  }));
+}
+
+function exportCsv(messages: HcsRead["messages"]) {
+  const header = "seq,consensus_timestamp,requestId,endpoint,status,paymentTxId,at";
+  const lines = messages.map((m) => {
+    const ev = parseEvent(m.message);
+    const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    return [
+      m.sequenceNumber,
+      esc(m.consensusTimestamp),
+      esc(ev?.requestId ?? ""),
+      esc(ev?.endpoint ?? ""),
+      esc(ev?.status ?? m.message.slice(0, 24)),
+      esc(ev?.paymentTxId ?? ""),
+      esc(ev?.at ?? ""),
+    ].join(",");
+  });
+  const blob = new Blob([`${header}\n${lines.join("\n")}`], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "strata402-hcs-audit.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function AuditPage() {
-  const hcs = useApi<HcsRead>("/api/hcs?limit=25", 10_000);
+  const hcs = useApi<HcsRead>("/api/hcs?limit=50", 10_000);
+  const bars = useMemo(() => volumeBuckets(hcs.data?.messages ?? []), [hcs.data]);
+  const hashscanTopic = hcs.data?.topicId
+    ? `https://hashscan.io/testnet/topic/${hcs.data.topicId}`
+    : null;
 
   return (
-    <Shell>
-      <div className="animate-fade-up">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">HCS Audit Explorer</h1>
-            <p className="mt-1 text-sm text-[#8a93a3]">
-              Immutable audit trail of paid requests — read live from the Hedera Consensus
-              Service topic on the public Mirror Node.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="btn btn-ghost !py-1.5 !text-xs" onClick={hcs.refresh}>
-              Refresh feed
-            </button>
-            {hcs.data?.topicId ? (
-              <a
-                href={`https://hashscan.io/testnet/topic/${hcs.data.topicId}`}
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-ghost !py-1.5 !text-xs"
-              >
-                View topic on HashScan ↗
-              </a>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="mono mt-4 inline-flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-1.5 text-xs text-[#00F2FE]">
-          TOPIC {hcs.data?.topicId ?? "—"}
-          <span className={hcs.data?.ok ? "chips chip-live" : "chips chip-warn"}>
-            {hcs.data?.ok ? "live" : "offline"}
+    <AppFrame>
+      <div className="screen">
+        <div className="topic-pill">
+          🔍 HCS Topic <b style={{ color: "var(--text-primary)" }}>{hcs.data?.topicId ?? "—"}</b>
+          <span className={hcs.data?.ok ? "chip chip-live" : "chip chip-pending"}>
+            {hcs.data?.ok ? "LIVE" : "OFFLINE"}
           </span>
         </div>
 
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-white/5">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-[#5d6573]">
-              <tr>
-                <th className="px-4 py-3">Seq</th>
-                <th className="px-4 py-3">Consensus timestamp</th>
-                <th className="px-4 py-3">Payer</th>
-                <th className="px-4 py-3">Message</th>
-                <th className="px-4 py-3">Running hash</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {hcs.loading && hcs.data === null ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-6">
-                    <div className="skeleton h-4 w-full" />
-                  </td>
-                </tr>
-              ) : null}
-              {hcs.data?.messages.map((m) => (
-                <tr key={m.sequenceNumber} className="align-top hover:bg-white/[0.02]">
-                  <td className="mono px-4 py-3 text-[#00F2FE]">{m.sequenceNumber}</td>
-                  <td className="mono px-4 py-3 text-xs text-[#c8d1de]">{m.consensusTimestamp}</td>
-                  <td className="mono px-4 py-3 text-xs text-[#8a93a3]">
-                    {m.payerAccountId ?? "—"}
-                  </td>
-                  <td className="mono px-4 py-3 text-xs text-[#9de8e4]">{m.message}</td>
-                  <td className="mono px-4 py-3 text-xs text-[#6b7280]">
-                    0x{m.runningHash.slice(0, 10)}…{m.runningHash.slice(-6)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {hcs.data?.ok && hcs.data.messages.length === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-[#5d6573]">
-              No messages published to this topic yet.
+        <div className="card">
+          <div className="eyebrow">x402 PAYMENT VOLUME / HR</div>
+          {hcs.loading && !hcs.data ? <div className="skeleton" style={{ height: 80, marginTop: 14 }} /> : null}
+          {bars.length ? (
+            <div>
+              <div className="bars">
+                {bars.map((b, i) => (
+                  <div
+                    key={i}
+                    className="bar"
+                    style={{ height: `${b.pct}%` }}
+                    title={`${b.count} request${b.count === 1 ? "" : "s"}`}
+                  />
+                ))}
+              </div>
+              <div className="bars" style={{ height: "auto", marginTop: 6 }}>
+                {bars.map((b, i) => (
+                  <div key={i} className="bar-label">
+                    {b.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {hcs.data && !hcs.data.ok ? (
+            <div style={{ marginTop: 12 }} className="error-box">
+              {hcs.data.error}
             </div>
           ) : null}
         </div>
 
-        {hcs.data && !hcs.data.ok ? (
-          <div className="glass mt-4 border-[#FF5252]/40 p-4 text-sm text-[#FFB259]">
-            {hcs.data.error}
-          </div>
+        <div className="section-title">
+          Audit Log
+          <span className="badge-live">
+            <span className="d"></span>Live
+          </span>
+        </div>
+        <div className="card">
+          {hcs.loading && !hcs.data ? (
+            <div className="skeleton" style={{ height: 120 }} />
+          ) : null}
+          {hcs.data?.ok && hcs.data.messages.length === 0 ? (
+            <div className="note" style={{ textAlign: "center", padding: 12 }}>
+              No messages published to this topic yet.
+            </div>
+          ) : null}
+          {hcs.data?.messages.map((m) => {
+            const ev = parseEvent(m.message);
+            const id = ev?.requestId ?? `seq ${m.sequenceNumber}`;
+            const svc = ev ? `${ev.endpoint ?? "?"} · ${fmtTime(m.consensusTimestamp)}` : `raw · ${fmtTime(m.consensusTimestamp)}`;
+            const fee = ev?.paymentTxId ? `0x…${ev.paymentTxId.slice(-8)}` : `${m.sequenceNumber} HBAR`;
+            const settled = ev ? ev.status === "200" || ev.paymentTxId !== null : false;
+            return (
+              <div className="audit-row" key={m.sequenceNumber}>
+                <div className="audit-left">
+                  <div className="id">{id}</div>
+                  <div className="svc">{svc}</div>
+                </div>
+                <div className="audit-right">
+                  <div className="fee">{fee}</div>
+                  <span className={`status-chip ${settled ? "settled" : ""}`}>
+                    <span className="d"></span>
+                    {settled ? "Settled" : "Audited"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="hero-cta" style={{ marginTop: 14 }}>
+          <button className="btn btn-ghost" onClick={hcs.refresh} disabled={hcs.loading}>
+            🔄 Refresh feed
+          </button>
+          <button
+            className="btn btn-ghost"
+            disabled={!hcs.data || hcs.data.messages.length === 0}
+            onClick={() => hcs.data && exportCsv(hcs.data.messages)}
+          >
+            📥 Export CSV
+          </button>
+        </div>
+        {hashscanTopic ? (
+          <a className="btn btn-primary btn-block" style={{ marginTop: 10 }} href={hashscanTopic} target="_blank" rel="noreferrer">
+            🔗 View Topic on HashScan
+          </a>
         ) : null}
       </div>
-    </Shell>
+    </AppFrame>
   );
 }

@@ -1,17 +1,37 @@
 "use client";
 
-import { useState } from "react";
-import { Shell } from "@/components/Shell";
+import { useEffect, useRef, useState } from "react";
+import { AppFrame } from "@/components/AppFrame";
+import { usePayment, DEFAULT_ACCOUNT } from "@/components/PaymentSheet";
 import { useApi } from "@/hooks/useApi";
 
 interface AccountResponse {
   ok: boolean;
-  accountId: string;
   exists: boolean;
   balanceHbar: string;
-  balanceTinybars: string;
-  balanceTimestamp: string | null;
-  deleted: boolean;
+}
+
+interface StatusResponse {
+  services: {
+    body?: {
+      services?: Array<{ priceTinybars?: number }>;
+    };
+  };
+}
+
+interface HcsResponse {
+  ok: boolean;
+  topicId: string;
+  messages: Array<{ sequenceNumber: number; runningHash: string }>;
+  error?: string;
+}
+
+interface Settlement {
+  verified: boolean;
+  transactionId: string;
+  payerAccountId: string;
+  recipientAccountId: string;
+  amountTinybars: string;
 }
 
 interface PaidResult {
@@ -19,205 +39,226 @@ interface PaidResult {
   code?: string;
   message?: string;
   paymentStatus?: string | null;
-  settlement?: {
-    verified: boolean;
-    transactionId: string;
-    payerAccountId: string;
-    recipientAccountId: string;
-    amountTinybars: string;
-  } | null;
+  settlement?: Settlement | null;
 }
 
+interface ChatMsg {
+  role: "ai" | "user";
+  text: string;
+  badge?: string;
+}
+
+type StepState = "pending" | "done" | "idle";
+
 export default function StudioPage() {
-  const [accountId, setAccountId] = useState("0.0.10329902");
-  const [tolerance, setTolerance] = useState("balanced");
-  const [result, setResult] = useState<PaidResult | null>(null);
+  const { openPay } = usePayment();
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [composerValue, setComposerValue] = useState("");
   const [busy, setBusy] = useState(false);
-  const [step, setStep] = useState<"idle" | "402" | "settling" | "done">("idle");
+  const [stepPay, setStepPay] = useState<StepState>("idle");
+  const [stepAnalysis, setStepAnalysis] = useState<StepState>("idle");
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const account = useApi<AccountResponse>(
-    /^0\.0\.\d{1,19}$/.test(accountId) && accountId !== "0.0.0"
-      ? `/api/account?accountId=${encodeURIComponent(accountId)}`
-      : "",
-  );
+  const account = useApi<AccountResponse>(`/api/account?accountId=${DEFAULT_ACCOUNT}`, 30_000);
+  const status = useApi<StatusResponse>("/api/status", 30_000);
+  const hcs = useApi<HcsResponse>("/api/hcs?limit=2", 20_000);
 
-  const usable = /^0\.0\.\d{1,19}$/.test(accountId) && accountId !== "0.0.0";
+  const priceHbar =
+    status.data?.services.body?.services?.[0]?.priceTinybars !== undefined
+      ? (status.data.services.body.services[0].priceTinybars / 1e8).toFixed(2)
+      : "0.01";
+  const balance = account.data?.exists
+    ? Number(account.data.balanceHbar).toFixed(4)
+    : "…";
+  const topicId = hcs.data?.topicId || "0.0.10483725";
+  const lastSeq = hcs.data?.ok ? hcs.data.messages[0]?.sequenceNumber : null;
+  const runningHash = hcs.data?.ok ? hcs.data.messages[0]?.runningHash : null;
 
-  async function run() {
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([
+        {
+          role: "ai",
+          text: `Hi — live account ${DEFAULT_ACCOUNT} holds ${balance} HBAR on hedera:testnet. Each analysis settles exactly ${priceHbar} HBAR via Blocky402 and is audited on HCS ${topicId}${
+            lastSeq ? ` (last seq ${lastSeq})` : ""
+          }. Send any prompt and I will run the real paid pipeline and show the on-chain evidence below.`,
+          badge: "⚡ x402 exact · Blocky402 · hedera:testnet",
+        },
+      ]);
+    }
+  }, [balance, priceHbar, topicId, lastSeq, messages.length]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages, busy]);
+
+  async function sendChat(override?: string) {
+    const text = (override ?? composerValue).trim();
+    if (text === "" || busy) return;
+    setComposerValue("");
     setBusy(true);
-    setResult(null);
-    setStep("402");
+    setStepPay("pending");
+    setMessages((prev) => [...prev, { role: "user", text }]);
+    await new Promise((r) => setTimeout(r, 700));
     try {
       const res = await fetch("/api/paid", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ accountId, riskTolerance: tolerance, amountHbar: 1 }),
+        body: JSON.stringify({ accountId: DEFAULT_ACCOUNT, riskTolerance: "balanced", amountHbar: 1 }),
       });
-      setStep("settling");
       const json = (await res.json()) as PaidResult;
-      setResult(json);
-      setStep("done");
+      if (json.ok && json.settlement) {
+        setStepPay("done");
+        setStepAnalysis("done");
+        const s = json.settlement;
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "ai",
+            text: `Executed. Settlement verified on the mirror: ${s.transactionId} (${s.payerAccountId} → ${s.recipientAccountId}, ${(
+              Number(s.amountTinybars) / 1e8
+            ).toFixed(2)} HBAR). Strategy is on-chain audited on HCS ${topicId}; AutoSwap execution stays gated until official protocol keys exist.`,
+            badge: `⚡ Settled ${priceHbar} HBAR via Blocky402`,
+          },
+        ]);
+      } else {
+        setStepPay("idle");
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "ai",
+            text: `Paid pipeline could not settle on this deployment (${json.code ?? "?"}: ${json.message}). No payment was fabricated — check the server env.`,
+            badge: "⚠ x402 closed",
+          },
+        ]);
+      }
     } catch (error) {
-      setResult({
-        ok: false,
-        code: "INTERNAL",
-        message: error instanceof Error ? error.message : String(error),
-      });
-      setStep("done");
+      setStepPay("idle");
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "ai",
+          text: `Request failed: ${error instanceof Error ? error.message : String(error)}`,
+          badge: "⚠ x402 closed",
+        },
+      ]);
     } finally {
       setBusy(false);
     }
   }
 
-  const fullTx = result?.settlement?.transactionId;
-
   return (
-    <Shell>
-      <div className="animate-fade-up grid gap-6 lg:grid-cols-2">
-        <section className="glass p-6">
-          <h1 className="text-xl font-bold">AI Strategy Studio</h1>
-          <p className="mt-2 text-sm text-[#8a93a3]">
-            A strategy pipeline generated from <strong>real account facts</strong> and a{" "}
-            <strong>real paid analysis</strong>. No mock liquidity, no invented APY.
-          </p>
+    <AppFrame>
+      <div className="screen">
+        <div className="eyebrow">
+          💬 AI STRATEGY ASSISTANT
+          <span className="badge-live" style={{ marginLeft: 4 }}>
+            <span className="d"></span>x402 ACTIVE
+          </span>
+        </div>
 
-          <div className="mt-6 space-y-4">
-            <div>
-              <label className="label">Account to analyze</label>
-              <input
-                className="input"
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-              />
+        <div className="chat-window" ref={scrollRef} style={{ maxHeight: 248, overflowY: "auto" }}>
+          {messages.map((m, i) => (
+            <div key={i} className={`msg ${m.role === "user" ? "user" : "ai"}`}>
+              {m.text}
+              {m.badge ? <div className="x402-badge">{m.badge}</div> : null}
             </div>
-            <div>
-              <label className="label">Risk tolerance</label>
-              <div className="grid grid-cols-3 gap-2">
-                {["conservative", "balanced", "aggressive"].map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTolerance(t)}
-                    className={`btn ${tolerance === t ? "btn-cyan" : "btn-ghost"} !py-2 !text-xs`}
-                  >
-                    {t}
-                  </button>
-                ))}
+          ))}
+          {busy ? (
+            <div className="msg ai">
+              <div className="typing">
+                <span></span>
+                <span></span>
+                <span></span>
               </div>
-            </div>
-            <button className="btn btn-emerald w-full" onClick={run} disabled={busy || !usable}>
-              {busy ? "Settling x402 payment…" : "Approve & Execute (0.01 HBAR)"}
-            </button>
-            <div className="chips chip-neutral">x402 exact · Blocky402 · hedera:testnet</div>
-          </div>
-        </section>
-
-        <section className="space-y-6">
-          <div className="glass p-6">
-            <h2 className="font-semibold">Strategy pipeline</h2>
-            {account.data ? (
-              <div className="mt-4 space-y-3">
-                <Step
-                  n="Step 1"
-                  title="Read account facts"
-                  detail={`Account ${account.data.accountId}: ${Number(account.data.balanceHbar).toFixed(4)} HBAR`}
-                  status={account.data.exists ? "ok" : "absent"}
-                />
-                <Step
-                  n="Step 2"
-                  title="Settle x402 micropayment"
-                  detail="0.01 HBAR via Blocky402 → gateway → analysis"
-                  status={busy || step === "settling" ? "pending" : result?.settlement?.verified ? "done" : "idle"}
-                />
-                <Step
-                  n="Step 3"
-                  title="Deterministic risk analysis"
-                  detail="Account-level on-chain facts only; no fabricated scores"
-                  status={result?.settlement?.verified ? "done" : "idle"}
-                />
-              </div>
-            ) : (
-              <div className="skeleton mt-4 h-24 w-full" />
-            )}
-          </div>
-
-          {result ? (
-            <div className="glass border-[#00F2FE]/30 p-6">
-              <h2 className="font-semibold text-[#00F2FE]">Payment result</h2>
-              <div className="mono mt-3 space-y-1 rounded-xl bg-black/30 p-4 text-xs leading-6">
-                {result.ok && result.settlement ? (
-                  <>
-                    <div>paymentStatus: {result.paymentStatus}</div>
-                    <div>settlementVerified: {String(result.settlement.verified)}</div>
-                    <div>recipient: {result.settlement.recipientAccountId}</div>
-                    <div>amount: {(Number(result.settlement.amountTinybars) / 1e8).toFixed(2)} HBAR</div>
-                  </>
-                ) : (
-                  <>
-                    <div>code: {result.code}</div>
-                    <div>message: {result.message}</div>
-                  </>
-                )}
-              </div>
-              {fullTx ? (
-                <a
-                  href={`https://hashscan.io/testnet/transaction/${fullTx}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mono mt-3 block break-all text-xs text-[#00F2FE] underline"
-                >
-                  {fullTx} ↗
-                </a>
-              ) : null}
             </div>
           ) : null}
+        </div>
 
-          {step === "402" && !result ? (
-            <div className="glass border-[#FF9100]/40 p-6">
-              <div className="chips chip-warn">HTTP 402 · PAYMENT-REQUIRED</div>
-              <p className="mt-3 text-sm text-[#8a93a3]">
-                The gateway replied with a payment requirement (exact, 0.01 HBAR, fee payer
-                Blocky402). Signing and settlement happen on the server against the live network.
-              </p>
+        <div className="composer">
+          <input
+            type="text"
+            placeholder="Type your prompt…"
+            value={composerValue}
+            onChange={(e) => setComposerValue(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendChat()}
+          />
+          <button className="send-btn" onClick={() => sendChat()} disabled={busy}>
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="section-title">Strategy Pipeline</div>
+        <div className="card">
+          <PipelineStep
+            num="1"
+            title="Read account facts"
+            sub={`Account ${DEFAULT_ACCOUNT} · ${balance} HBAR · live mirror`}
+            state={account.data?.exists ? "done" : account.loading ? "pending" : "idle"}
+          />
+          <PipelineStep
+            num="2"
+            title="Settle x402 micropayment"
+            sub={`${priceHbar} HBAR · exact · Blocky402 → gateway`}
+            state={stepPay}
+          />
+          <PipelineStep
+            num="3"
+            title="Deterministic risk analysis"
+            sub="Opaque deterministic engine over real Mirror Node facts — no invented scores"
+            state={stepAnalysis}
+          />
+          <PipelineStep
+            num="4"
+            title="AutoSwap execution"
+            sub="PENDING — requires official SaucerSwap/Bonzo testnet keys"
+            state="pending"
+          />
+        </div>
+
+        <div className="card" style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div className="eyebrow">HCS AUDIT HASH</div>
+            <div className="mono" style={{ fontSize: 11.5, color: "var(--text-secondary)" }}>
+              {runningHash ? `0x${runningHash.slice(0, 8)}…${runningHash.slice(-4)}` : hcs.loading ? "loading…" : "—"}
             </div>
-          ) : null}
-        </section>
+            <div className="note" style={{ marginTop: 3 }}>topic {topicId} · seq {lastSeq ?? "…"}</div>
+          </div>
+          <span className={`status-chip ${hcs.data?.ok ? "settled" : ""}`}>
+            {hcs.data?.ok ? <><span className="d"></span>Verified</> : "offline"}
+          </span>
+        </div>
+
+        <button className="btn btn-primary btn-block" style={{ marginTop: 14 }} onClick={() => openPay("Strategy Execution")}>
+          🚀 Approve &amp; Execute Strategy
+        </button>
+        <div className="note" style={{ marginTop: 8, textAlign: "center" }}>
+          Executes the real paid analysis ({priceHbar} HBAR) and writes on-chain evidence to HCS {topicId}.
+        </div>
       </div>
-    </Shell>
+    </AppFrame>
   );
 }
 
-function Step({
-  n,
+function PipelineStep({
+  num,
   title,
-  detail,
-  status,
+  sub,
+  state,
 }: {
-  n: string;
+  num: string;
   title: string;
-  detail: string;
-  status: "idle" | "pending" | "done" | "ok" | "absent";
+  sub: string;
+  state: StepState;
 }) {
-  const color =
-    status === "done" || status === "ok"
-      ? "text-[#1DE9B6]"
-      : status === "pending"
-        ? "text-[#FFB259]"
-        : "text-[#5d6573]";
-  const dot =
-    status === "done" || status === "ok"
-      ? "●"
-      : status === "pending"
-        ? "◐"
-        : "○";
   return (
-    <div className="flex items-start gap-3 rounded-xl bg-white/[0.03] p-4">
-      <div className={`mono mt-0.5 text-[#00F2FE]`}>{n}</div>
-      <div className="flex-1">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <span className={color}>{dot}</span>
-          {title}
-        </div>
-        <div className="mt-0.5 text-xs text-[#8a93a3]">{detail}</div>
+    <div className="pipeline-step">
+      <div className={`step-num ${state}`}>{num}</div>
+      <div className="step-info">
+        <div className="t">{title}</div>
+        <div className="s">{sub}</div>
       </div>
     </div>
   );

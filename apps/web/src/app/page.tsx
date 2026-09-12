@@ -1,39 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { Shell } from "@/components/Shell";
+import { useState } from "react";
+import { AppFrame } from "@/components/AppFrame";
+import { usePayment, DEFAULT_ACCOUNT } from "@/components/PaymentSheet";
 import { useApi } from "@/hooks/useApi";
 
 interface StatusResponse {
   gateway: {
     baseUrl: string;
     ok: boolean;
-    health: {
-      service?: string;
-      version?: string;
-      network?: string;
-      x402Version?: number;
-      timestamp?: string;
-    };
+    health: { service?: string; version?: string; network?: string; x402Version?: number };
   };
-  aiEngine: {
-    baseUrl: string;
-    ok: boolean;
-    health: { service?: string; network?: string };
-  };
-  mirror: { baseUrl: string; ok: boolean };
+  aiEngine: { baseUrl: string; ok: boolean; health: { service?: string } };
+  mirror: { ok: boolean };
   hcs: { topicId: string; configured: boolean };
   services: {
     ok: boolean;
     body?: {
       network?: string;
       payTo?: string;
-      services?: Array<{
-        id?: string;
-        name?: string;
-        priceTinybars?: number;
-        asset?: string;
-      }>;
+      services?: Array<{ id?: string; name?: string; priceTinybars?: number; asset?: string }>;
     };
   };
 }
@@ -41,215 +28,172 @@ interface StatusResponse {
 interface HcsResponse {
   ok: boolean;
   topicId: string;
-  messages: Array<{
-    sequenceNumber: number;
-    consensusTimestamp: string;
-    message: string;
-  }>;
+  messages: Array<{ sequenceNumber: number; consensusTimestamp: string }>;
   error?: string;
 }
 
-function StatCard({
-  label,
-  value,
-  sub,
-  accent,
-  skeleton,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accent?: "cyan" | "emerald" | "amber";
-  skeleton?: boolean;
-}) {
-  const color =
-    accent === "cyan"
-      ? "text-[#00F2FE]"
-      : accent === "emerald"
-        ? "text-[#1DE9B6]"
-        : accent === "amber"
-          ? "text-[#FFB259]"
-          : "text-white";
-  return (
-    <div className="glass p-5">
-      <div className="label">{label}</div>
-      {skeleton ? (
-        <div className="skeleton mt-2 h-7 w-2/3" />
-      ) : (
-        <div className={`mono mt-1 text-2xl font-bold ${color}`}>{value}</div>
-      )}
-      {sub ? <div className="mt-1 text-xs text-[#5d6573]">{sub}</div> : null}
-    </div>
-  );
-}
-
-function SystemTile({
-  label,
-  value,
-  ok,
-  loading,
-}: {
-  label: string;
-  value: string;
-  ok: boolean | null;
-  loading?: boolean;
-}) {
-  return (
-    <div className="glass flex items-center justify-between gap-3 p-3">
-      <div className="min-w-0">
-        <div className="label !mb-1">{label}</div>
-        <div className="mono truncate text-xs text-[#8a93a3]">{value}</div>
-      </div>
-      {loading ? (
-        <span className="chips chip-neutral">…</span>
-      ) : (
-        <span className={`chips ${ok ? "chip-live" : "chip-warn"}`}>{ok ? "LIVE" : "DOWN"}</span>
-      )}
-    </div>
-  );
+interface AccountResponse {
+  ok: boolean;
+  exists: boolean;
+  balanceHbar: string;
 }
 
 export default function LandingPage() {
+  const { openPay } = usePayment();
+  const [gatedNote, setGatedNote] = useState(false);
   const status = useApi<StatusResponse>("/api/status", 15_000);
-  const hcs = useApi<HcsResponse>("/api/hcs?limit=6", 15_000);
+  const hcs = useApi<HcsResponse>("/api/hcs?limit=3", 15_000);
+  const account = useApi<AccountResponse>(
+    `/api/account?accountId=${DEFAULT_ACCOUNT}`,
+    30_000,
+  );
 
+  const firstService = status.data?.services.body?.services?.[0];
+  const priceTinybars = firstService?.priceTinybars;
+  const priceHbar =
+    priceTinybars !== undefined ? (priceTinybars / 1e8).toFixed(2) : "…";
+  const serviceName = firstService?.name ?? status.data?.gateway.health.service ?? "…";
   const health = status.data?.gateway.health;
-  const service = status.data?.services.body?.services?.[0];
-  const priceTinybars = service?.priceTinybars;
-  const payTo = status.data?.services.body?.payTo;
+  const payTo = status.data?.services.body?.payTo ?? "0.0.10464194";
+  const topicId = status.data?.hcs.topicId || "0.0.10483725";
   const lastAudit = hcs.data?.ok ? hcs.data.messages[0] : null;
+  const balance = account.data?.exists
+    ? Number(account.data.balanceHbar).toFixed(2)
+    : "…";
+
+  function onGated() {
+    setGatedNote(true);
+  }
 
   return (
-    <Shell>
-      <section className="animate-fade-up pt-8 text-center">
-        <span className="chips chip-live mb-6">x402 v2 · Blocky402 settlement · Hedera testnet</span>
-        <h1 className="mx-auto max-w-3xl text-4xl font-bold leading-tight md:text-5xl">
-          Autonomous AI DeFi intelligence,{" "}
-          <span className="bg-gradient-to-r from-[#00F2FE] to-[#4FACFE] bg-clip-text text-transparent">
-            paid per call
-          </span>
-          , on Hedera
-        </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-base text-[#8a93a3]">
-          Institutional risk analytics for Hedera positions. An agent discovers the service,
-          settles an HBAR micropayment through Blocky402, and receives a deterministic analysis
-          built from real Mirror Node facts — audited on HCS, proven on-chain.
-        </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link href="/studio" className="btn btn-cyan">
-            Launch AI Studio
-          </Link>
-          <Link href="/audit" className="btn btn-ghost">
-            View Live HCS Audit Feed
-          </Link>
+    <AppFrame>
+      <div className="screen">
+        <div className="hero">
+          <div className="eyebrow">🤖 AUTONOMOUS DEFI AGENT · HEDERA</div>
+          <h1>Institutional risk intelligence, paid per call.</h1>
+          <p>
+            Real Mirror Node data, x402 micropayments settled via Blocky402, every request
+            audited on HCS.
+          </p>
+          <div className="hero-cta">
+            <Link href="/studio" className="btn btn-primary">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
+                <path d="M5 12h14M13 5l7 7-7 7" />
+              </svg>
+              Launch AI Studio
+            </Link>
+            <Link href="/audit" className="btn btn-ghost">
+              View HCS Feed
+            </Link>
+          </div>
         </div>
-      </section>
 
-      <section className="mt-10 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <SystemTile
-          label="API Gateway"
-          value={status.data?.gateway.health.service ?? "—"}
-          ok={status.data?.gateway.ok ?? null}
-          loading={status.loading}
-        />
-        <SystemTile
-          label="AI Engine"
-          value={status.data?.aiEngine.health.service ?? "—"}
-          ok={status.data?.aiEngine.ok ?? null}
-          loading={status.loading}
-        />
-        <SystemTile
-          label="Mirror Node (testnet)"
-          value="public read"
-          ok={status.data?.mirror.ok ?? null}
-          loading={status.loading}
-        />
-        <SystemTile
-          label="HCS Audit Topic"
-          value={status.data?.hcs.topicId || "not configured"}
-          ok={status.data?.hcs.configured ? true : null}
-          loading={status.loading}
-        />
-      </section>
-
-      <section className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard
-          label="Service / gateway"
-          value={health ? String(health.service ?? "—") : "…"}
-          sub={status.data?.gateway.baseUrl}
-          accent="cyan"
-          skeleton={status.loading}
-        />
-        <StatCard
-          label="x402 version"
-          value={health?.x402Version !== undefined ? String(health.x402Version) : "…"}
-          sub={health?.network}
-          accent="cyan"
-          skeleton={status.loading}
-        />
-        <StatCard
-          label="Price per analysis"
-          value={
-            priceTinybars !== undefined
-              ? `${(priceTinybars / 1e8).toFixed(2)} HBAR`
-              : "…"
-          }
-          sub={
-            priceTinybars !== undefined
-              ? `${priceTinybars.toLocaleString("en-US")} tinybars`
-              : undefined
-          }
-          accent="emerald"
-          skeleton={status.loading}
-        />
-        <StatCard
-          label="Last HCS audit"
-          value={lastAudit ? `seq ${lastAudit.sequenceNumber}` : "…"}
-          sub={lastAudit?.consensusTimestamp}
-          accent="amber"
-          skeleton={hcs.loading}
-        />
-      </section>
-
-      <div className="mono mt-3 text-right text-xs text-[#5d6573]">
-        {payTo ? `service payTo: ${payTo}` : null}
-      </div>
-
-      {status.error ? (
-        <div className="glass mt-8 border-[#FF5252]/40 p-4 text-sm text-[#FFB259]">
-          Gateway unreachable: {status.error}. Start the gateway (services/api-gateway) on :8080
-          and the ai-engine on :8000 before using this dashboard.
-        </div>
-      ) : null}
-
-      <section className="mt-16">
-        <h2 className="text-xl font-bold">How it works</h2>
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
-          {[
-            {
-              n: "01",
-              t: "Discover & challenge",
-              d: "The agent reads the real service manifest, then triggers an HTTP 402 Payment Required from the live gateway.",
-            },
-            {
-              n: "02",
-              t: "Settle in HBAR",
-              d: "A real 0.01 HBAR exact transfer is verified and settled through Blocky402, provable on HashScan.",
-            },
-            {
-              n: "03",
-              t: "Deterministic analysis",
-              d: "The paid response is a deterministic narrative over real Mirror Node facts. No risk scores are invented.",
-            },
-          ].map((item) => (
-            <div key={item.n} className="glass p-6">
-              <div className="mono text-xs text-[#00F2FE]">{item.n}</div>
-              <h3 className="mt-2 font-semibold">{item.t}</h3>
-              <p className="mt-2 text-sm text-[#8a93a3]">{item.d}</p>
+        <div className="stats-row stagger">
+          <div className="stat-tile">
+            <div className="label">SERVICE / GATEWAY</div>
+            <div className="value cyan" style={{ fontSize: 14 }}>
+              {status.loading ? "…" : serviceName}
             </div>
-          ))}
+            <div className="sub">x402 v{health?.x402Version ?? "·"} · {health?.network ?? "hestera"}</div>
+          </div>
+          <div className="stat-tile">
+            <div className="label">PRICE / CALL</div>
+            <div className="value emerald">{status.loading ? "…" : `${priceHbar} HBAR`}</div>
+            <div className="sub">exact · 1,000,000 tinybars</div>
+          </div>
+          <div className="stat-tile">
+            <div className="label">HCS TOPIC ID</div>
+            <div className="value" style={{ fontSize: 13 }}>
+              {status.loading ? "…" : topicId}
+            </div>
+            <div className="sub">
+              {lastAudit ? `seq ${lastAudit.sequenceNumber} · live` : "…"}
+            </div>
+          </div>
+          <div className="stat-tile">
+            <div className="label">PAYER ACCOUNT</div>
+            <div className="value" style={{ fontSize: 15 }}>
+              {DEFAULT_ACCOUNT}
+            </div>
+            <div className="sub">{account.data ? `${balance} HBAR` : "…"}</div>
+          </div>
         </div>
-      </section>
-    </Shell>
+
+        <div className="section-title">
+          Agent Marketplace{" "}
+          <Link href="/audit">HCS-14 registry →</Link>
+        </div>
+
+        <div className="stagger">
+          <div className="card agent-card">
+            <div className="agent-icon" style={{ background: "rgba(0,242,254,.12)", color: "var(--cyan)" }}>
+              ◆
+            </div>
+            <div className="agent-info">
+              <div className="name">Strata402 Core Agent</div>
+              <div className="price">
+                {status.loading ? "…" : `${priceHbar} HBAR / call`} · payTo {payTo}
+              </div>
+            </div>
+            <button className="mini-btn" onClick={() => openPay("Strata402 Core Agent")}>
+              Try demo
+            </button>
+          </div>
+
+          <div className="card agent-card">
+            <div className="agent-icon" style={{ background: "rgba(0,230,118,.12)", color: "var(--emerald)" }}>
+              ⟲
+            </div>
+            <div className="agent-info">
+              <div className="name">SaucerSwap LP Optimizer</div>
+              <div className="price">GATED · awaiting official SaucerSwap testnet key</div>
+            </div>
+            <button className="mini-btn emerald-o" disabled onClick={onGated}>
+              Try demo
+            </button>
+          </div>
+
+          <div className="card agent-card">
+            <div className="agent-icon" style={{ background: "rgba(255,145,0,.12)", color: "var(--warn)" }}>
+              ⛨
+            </div>
+            <div className="agent-info">
+              <div className="name">Bonzo Risk Guard</div>
+              <div className="price">GATED · awaiting official Bonzo protocol keys</div>
+            </div>
+            <button className="mini-btn warn-o" disabled onClick={onGated}>
+              Try demo
+            </button>
+          </div>
+        </div>
+
+        {gatedNote ? (
+          <div className="card" style={{ marginTop: 4, borderLeft: "3px solid var(--warn)" }}>
+            <div className="mono" style={{ fontSize: 11.5, color: "var(--warn)" }}>
+              Honest gate — no fabricated prices.
+            </div>
+            <div className="note" style={{ marginTop: 4 }}>
+              AutoSwap and Bonzo integrators will not be shown as operating until their official
+              testnet protocol keys exist and can be exercised for real. Displayed prices would
+              be invented numbers, so they are withheld.
+            </div>
+          </div>
+        ) : null}
+
+        {status.error ? (
+          <div className="error-box" style={{ marginTop: 16 }}>
+            Gateway unreachable: {status.error}. Start the gateway (:8080) and ai-engine (:8000)
+            before using this dashboard.
+          </div>
+        ) : null}
+      </div>
+    </AppFrame>
   );
 }

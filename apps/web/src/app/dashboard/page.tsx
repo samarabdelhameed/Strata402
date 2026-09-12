@@ -1,301 +1,283 @@
 "use client";
 
-import { useState } from "react";
-import { Shell } from "@/components/Shell";
+import { useEffect, useMemo, useState } from "react";
+import { AppFrame } from "@/components/AppFrame";
+import { usePayment, DEFAULT_ACCOUNT } from "@/components/PaymentSheet";
 import { useApi } from "@/hooks/useApi";
 
-interface AccountResponse {
+interface ActivityResponse {
   ok: boolean;
-  accountId: string;
-  exists: boolean;
-  balanceHbar: string;
-  balanceTinybars: string;
-  balanceTimestamp: string | null;
-  createdTimestamp: string | null;
-  deleted: boolean;
+  total: number;
+  inflowHbar: string;
+  outflowHbar: string;
+  netHbar: string;
+  fromTs: number | null;
+  buckets: Array<{ label: string; count: number }>;
   error?: string;
 }
 
-interface PaidAvailability {
-  enabled: boolean;
-  reason: string | null;
-  priceTinybars: string;
-  priceDisplay: string;
-}
-
-interface PaidResult {
+interface AccountResponse {
   ok: boolean;
-  code?: string;
-  message?: string;
-  phase?: string;
-  httpStatus?: number | null;
-  paymentStatus?: string | null;
-  paymentTxId?: string | null;
-  settlement?: {
-    verified: boolean;
-    transactionId: string;
-    result: string;
-    payerAccountId: string;
-    recipientAccountId: string;
-    amountTinybars: string;
-    consensusTimestamp: string;
-  } | null;
-  serviceUrl?: string;
-  mirrorBaseUrl?: string;
+  exists: boolean;
+  balanceHbar: string;
+  balanceTinybars: string;
+  error?: string;
 }
 
-const VALID_ACCOUNT = /^0\.0\.\d{1,19}$/;
+const CIRCUMFERENCE = 2 * Math.PI * 54;
 
-export default function DashboardPage() {
-  const [accountId, setAccountId] = useState("0.0.10329902");
-  const [riskTolerance, setRiskTolerance] = useState("balanced");
-  const [amountHbar, setAmountHbar] = useState(1);
-  const [paid, setPaid] = useState<PaidResult | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const availability = useApi<PaidAvailability>("/api/paid");
-  const account = useApi<AccountResponse>(
-    VALID_ACCOUNT.test(accountId) && accountId !== "0.0.0"
-      ? `/api/account?accountId=${encodeURIComponent(accountId)}`
-      : "",
+function Gauge({ fraction, center, label }: { fraction: number; center: string; label: string }) {
+  const [offset, setOffset] = useState(CIRCUMFERENCE);
+  const clamped = Math.min(Math.max(fraction, 0), 1);
+  useEffect(() => {
+    const id = window.setTimeout(() => setOffset(CIRCUMFERENCE * (1 - clamped)), 180);
+    return () => window.clearTimeout(id);
+  }, [clamped]);
+  return (
+    <div className="gauge-wrap">
+      <div className="gauge">
+        <svg width="130" height="130">
+          <circle cx="65" cy="65" r="54" stroke="rgba(255,255,255,.06)" strokeWidth="10" fill="none" />
+          <circle
+            cx="65"
+            cy="65"
+            r="54"
+            stroke="url(#g1)"
+            strokeWidth="10"
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={CIRCUMFERENCE}
+            strokeDashoffset={offset}
+            style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1)" }}
+          />
+          <defs>
+            <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#00E676" />
+              <stop offset="100%" stopColor="#1DE9B6" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div className="gauge-center">
+          <div className="num">{center}</div>
+          <div className="lbl">{label}</div>
+        </div>
+      </div>
+      <div className="risk-tag warn">No fabricated risk score</div>
+    </div>
   );
+}
 
-  async function runPaidAnalysis() {
-    setBusy(true);
-    setPaid(null);
-    try {
-      const res = await fetch("/api/paid", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ accountId, riskTolerance, amountHbar }),
-      });
-      setPaid((await res.json()) as PaidResult);
-    } catch (error) {
-      setPaid({
-        ok: false,
-        code: "INTERNAL",
-        message: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const usableAccount = VALID_ACCOUNT.test(accountId) && accountId !== "0.0.0";
-  const dutyPaidEnabled = availability.data?.enabled === true;
+function ActivityChart({ buckets }: { buckets: Array<{ label: string; count: number }> }) {
+  const counts = buckets.map((b) => b.count);
+  const max = Math.max(...counts, 1);
+  const width = 300;
+  const height = 90;
+  const n = buckets.length;
+  const points = counts.map((c, i) => {
+    const x = n === 1 ? width : (i / (n - 1)) * width;
+    const y = height - 8 - (c / max) * (height - 16);
+    return { x, y };
+  });
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const areaPath = `${linePath} L${width},${height} L0,${height} Z`;
+  const last = points[points.length - 1];
 
   return (
-    <Shell>
-      <div className="animate-fade-up">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Risk Dashboard</h1>
-            <p className="mt-1 text-sm text-[#8a93a3]">
-              Real account-level on-chain facts from the Hedera Mirror Node. The paid analysis
-              is an x402 micropayment settled live through Blocky402.
-            </p>
-          </div>
-          <span
-            className={`chips ${
-              dutyPaidEnabled ? "chip-live" : "chip-warn"
-            }`}
-          >
-            {dutyPaidEnabled
-              ? "paid analysis live"
-              : "paid analysis closed on this deployment"}
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} style={{ marginTop: 10, overflow: "visible" }}>
+      <defs>
+        <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(0,242,254,.35)" />
+          <stop offset="100%" stopColor="rgba(0,242,254,0)" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill="url(#areaFill)" />
+      <path
+        d={linePath}
+        fill="none"
+        stroke="var(--cyan)"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ filter: "drop-shadow(0 0 6px rgba(0,242,254,.6))" }}
+      />
+      <circle cx={last.x} cy={last.y} r="4" fill="#fff" style={{ filter: "drop-shadow(0 0 6px #00F2FE)" }} />
+    </svg>
+  );
+}
+
+export default function DashboardPage() {
+  const { openPay } = usePayment();
+  const account = useApi<AccountResponse>(`/api/account?accountId=${DEFAULT_ACCOUNT}`, 30_000);
+  const activity = useApi<ActivityResponse>(
+    `/api/tx-activity?accountId=${DEFAULT_ACCOUNT}&buckets=12`,
+    30_000,
+  );
+
+  const balance = account.data?.exists ? Number(account.data.balanceHbar).toFixed(2) : "…";
+  const net = Number(activity.data?.netHbar ?? 0);
+  const fraction =
+    activity.data && Number(balance) > 0
+      ? Math.min(Math.abs(net) / Number(balance), 1)
+      : 0;
+
+  const frame = useMemo(() => {
+    if (!activity.data?.buckets?.length) return null;
+    return { label: `${activity.data.buckets[0].label} UTC → ${activity.data.buckets.at(-1)?.label} UTC` };
+  }, [activity.data]);
+
+  return (
+    <AppFrame>
+      <div className="screen">
+        <div className="nav-strip">
+          <span>
+            PAYER <b style={{ color: "var(--text-primary)" }}>{DEFAULT_ACCOUNT}</b>
+          </span>
+          <span className="badge-live">
+            <span className="d"></span>TESTNET
           </span>
         </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
-          <div className="space-y-6">
-            <section className="glass p-6">
-              <h2 className="font-semibold">Account facts (read-only, live mirror)</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-                <Fact label="Account" value={account.data?.accountId ?? "…"} mono />
-                <Fact
-                  label="Balance"
-                  value={
-                    account.data
-                      ? `${Number(account.data.balanceHbar).toFixed(4)} HBAR`
-                      : "…"
-                  }
-                  mono
-                />
-                <Fact
-                  label="Balance timestamp"
-                  value={account.data?.balanceTimestamp ?? "…"}
-                  mono
-                />
-                <Fact
-                  label="Exists / deleted"
-                  value={
-                    account.data ? `${account.data.exists ? "yes" : "no"} / ${account.data.deleted ? "deleted" : "active"}` : "…"
-                  }
-                  mono
-                />
-              </div>
-              {account.loading ? <div className="skeleton mt-4 h-3 w-full" /> : null}
-              {account.error && !account.data ? (
-                <div className="mt-3 text-xs text-[#FFB259]">{account.error}</div>
-              ) : null}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  className="btn btn-ghost !py-1.5 !text-xs"
-                  onClick={account.refresh}
-                  disabled={!usableAccount}
-                >
-                  Refresh mirror
-                </button>
-                <button
-                  className="btn btn-ghost !py-1.5 !text-xs"
-                  onClick={() => {
-                    setAccountId("0.0.10464194");
-                  }}
-                >
-                  Load payTo (0.0.10464194)
-                </button>
-              </div>
-            </section>
-
-            {paid ? (
-              <section className="glass border-[#00F2FE]/30 p-6">
-                <h2 className="font-semibold text-[#00F2FE]">Paid x402 analysis result</h2>
-                {paid.ok && paid.settlement ? (
-                  <>
-                    <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-                      <Fact label="HTTP status" value={String(paid.httpStatus ?? "—")} mono />
-                      <Fact label="Payment status" value={paid.paymentStatus ?? "—"} mono />
-                      <Fact
-                        label="Settlement verified"
-                        value={paid.settlement.verified ? "true" : "false"}
-                        mono
-                        accent={paid.settlement.verified ? "emerald" : "amber"}
-                      />
-                      <Fact label="Amount" value={`${(Number(paid.settlement.amountTinybars) / 1e8).toFixed(2)} HBAR`} mono />
-                    </div>
-                    <div className="mono mt-4 rounded-xl bg-black/30 p-4 text-xs leading-6 text-[#9de8e4]">
-                      <div>phase: {paid.phase}</div>
-                      <div>
-                        tx:{" "}
-                        <a
-                          href={`https://hashscan.io/testnet/transaction/${paid.settlement.transactionId}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="underline decoration-[#00F2FE]/40 hover:text-[#00F2FE]"
-                        >
-                          {paid.settlement.transactionId}
-                        </a>
-                      </div>
-                      <div>payer: {paid.settlement.payerAccountId}</div>
-                      <div>payTo: {paid.settlement.recipientAccountId}</div>
-                      <div>consensus: {paid.settlement.consensusTimestamp}</div>
-                      <div>result: {paid.settlement.result}</div>
-                    </div>
-                    <div className="mt-3 text-xs text-[#5d6573]">
-                      Settlement evidence verified against{" "}
-                      <span className="mono">{paid.mirrorBaseUrl}</span>. Open the transaction on
-                      HashScan to see the transfer on-chain.
-                    </div>
-                  </>
-                ) : (
-                  <div className="mono mt-3 rounded-xl bg-black/30 p-4 text-xs leading-6 text-[#FFB259]">
-                    <div>code: {paid.code}</div>
-                    <div>message: {paid.message}</div>
-                  </div>
-                )}
-              </section>
-            ) : null}
-          </div>
-
-          <aside className="glass h-fit p-6">
-            <h2 className="font-semibold">Run paid analysis</h2>
-            <p className="mt-1 text-xs text-[#5d6573]">
-              One real x402 exact payment{" "}
-              <span className="mono">{availability.data?.priceDisplay ?? "0.01 HBAR"}</span> →
-              deterministic analysis of the target account.
-            </p>
-
-            <div className="mt-5 space-y-4">
-              <div>
-                <label className="label">Account ID</label>
-                <input
-                  className="input"
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  placeholder="0.0.xxxxx"
-                />
-                {!usableAccount ? (
-                  <div className="mt-1 text-xs text-[#FF5252]">expected 0.0.X, not 0.0.0</div>
-                ) : null}
-              </div>
-              <div>
-                <label className="label">Risk tolerance</label>
-                <select
-                  className="input"
-                  value={riskTolerance}
-                  onChange={(e) => setRiskTolerance(e.target.value)}
-                >
-                  <option value="conservative">conservative</option>
-                  <option value="balanced">balanced</option>
-                  <option value="aggressive">aggressive</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Amount (HBAR, display only)</label>
-                <input
-                  className="input"
-                  type="number"
-                  min={0.01}
-                  max={1_000_000}
-                  value={amountHbar}
-                  onChange={(e) => setAmountHbar(Number(e.target.value))}
-                />
-              </div>
-
-              <button
-                className="btn btn-cyan w-full"
-                onClick={runPaidAnalysis}
-                disabled={busy || !usableAccount || !dutyPaidEnabled}
-              >
-                {busy ? "Settling…" : dutyPaidEnabled ? "Run paid analysis" : "Paid flow closed"}
-              </button>
-
-              {!dutyPaidEnabled ? (
-                <div className="mt-2 rounded-lg bg-[#FF9100]/10 p-3 text-xs leading-5 text-[#FFB259]">
-                  The server-side payer is closed on this deployment{" "}
-                  <span className="mono">(STRATA402_RUN_C1 / STRATA402_C1_CONFIRM)</span>. Enable it
-                  in the web server env to settle live HBAR.
-                </div>
-              ) : null}
+        <div className="card" style={{ padding: "16px 8px" }}>
+          <Gauge
+            fraction={fraction}
+            center={balance}
+            label="HBAR BALANCE"
+          />
+          <div className="stagger" style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 8px" }}>
+            <div className="stat-tile">
+              <div className="label">30D FLOW IN</div>
+              <div className="value emerald" style={{ fontSize: 15 }}>{activity.data ? `${activity.data.inflowHbar}` : "…"}</div>
             </div>
-          </aside>
+            <div className="stat-tile">
+              <div className="label">30D FLOW OUT</div>
+              <div className="value" style={{ fontSize: 15 }}>{activity.data ? activity.data.outflowHbar : "…"}</div>
+            </div>
+          </div>
+          <div className="note" style={{ marginTop: 10, textAlign: "center" }}>
+            Real on-chain facts from the public Mirror Node · {activity.data?.total ?? "…"} txs observed
+            {activity.data?.error ? ` · ${activity.data.error}` : ""}
+          </div>
+        </div>
+
+        <div className="card chart-card" style={{ marginTop: 14 }}>
+          <div className="chart-head">
+            <div>
+              <div className="eyebrow">ACCOUNT ACTIVITY</div>
+              <div className="big-num">{activity.data ? `${activity.data.total} TX` : "…"}</div>
+            </div>
+            <div className="delta">{activity.data ? `${net} HBAR net` : "…"}</div>
+          </div>
+          {activity.loading && !activity.data ? <div className="skeleton" style={{ height: 90, marginTop: 10 }} /> : null}
+          {activity.data?.buckets?.length ? <ActivityChart buckets={activity.data.buckets} /> : null}
+          {activity.data?.error && !activity.data.buckets.length ? (
+            <div className="error-box" style={{ marginTop: 10 }}>{activity.data.error}</div>
+          ) : null}
+          <div className="timeframes">
+            <span className="tf active">Live</span>
+            <span className="tf">{frame ? `${frame.label}` : "—"}</span>
+          </div>
+        </div>
+
+        <button
+          className="btn btn-emerald btn-block"
+          style={{ marginTop: 14 }}
+          onClick={() => openPay("Portfolio Health Scan")}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <path d="M13 2L3 14h7l-1 8 11-14h-7l1-6z" />
+          </svg>
+          Run AI Portfolio Health Scan
+        </button>
+
+        <div className="section-title">SaucerSwap V2 Pools</div>
+        <div className="card">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Pool</th>
+                <th>TVL</th>
+                <th>APY</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div className="pair-cell">
+                    <span className="coin-dot" style={{ background: "linear-gradient(135deg,#8247e5,#c2a2ff)" }}></span>
+                    HBAR/USDC
+                  </div>
+                </td>
+                <td>—</td>
+                <td>—</td>
+                <td><button className="mini-btn" disabled>Gated</button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div className="pair-cell">
+                    <span className="coin-dot" style={{ background: "linear-gradient(135deg,#00E676,#1DE9B6)" }}></span>
+                    HBAR/SAUCE
+                  </div>
+                </td>
+                <td>—</td>
+                <td>—</td>
+                <td><button className="mini-btn" disabled>Gated</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="note" style={{ marginTop: 10 }}>
+            Values withheld: official SaucerSwap testnet token/routing feeds are not yet live.
+          </div>
+        </div>
+
+        <div className="section-title">Bonzo Lending Matrix</div>
+        <div className="card">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Supply</th>
+                <th>Borrow</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div className="pair-cell">
+                    <span className="coin-dot" style={{ background: "linear-gradient(135deg,#4FACFE,#00F2FE)" }}></span>
+                    HBAR
+                  </div>
+                </td>
+                <td>—</td>
+                <td>—</td>
+                <td><button className="mini-btn emerald-o" disabled>Gated</button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div className="pair-cell">
+                    <span className="coin-dot" style={{ background: "linear-gradient(135deg,#2775CA,#5AC1FF)" }}></span>
+                    USDC
+                  </div>
+                </td>
+                <td>—</td>
+                <td>—</td>
+                <td><button className="mini-btn emerald-o" disabled>Gated</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="note" style={{ marginTop: 10 }}>
+            Rates withheld: Bonzo testnet cannot be exercised yet — no invented APY.
+          </div>
         </div>
       </div>
-    </Shell>
-  );
-}
-
-function Fact({
-  label,
-  value,
-  mono,
-  accent = "default",
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-  accent?: "default" | "emerald" | "amber";
-}) {
-  const color =
-    accent === "emerald"
-      ? "text-[#1DE9B6]"
-      : accent === "amber"
-        ? "text-[#FFB259]"
-        : "text-white";
-  return (
-    <div className="rounded-xl bg-white/[0.03] p-3">
-      <div className="label !mb-1">{label}</div>
-      <div className={`${mono ? "mono " : ""}truncate text-sm font-semibold ${color}`}>{value}</div>
-    </div>
+    </AppFrame>
   );
 }
