@@ -6,6 +6,10 @@
 > [x402 v2](https://x402.org) payment protocol, settled through Blocky402, audited
 > through HCS, and surfaced through a live Web UI. **Nothing is mocked.**
 
+![CI](https://github.com/samarabdelhameed/Strata402/actions/workflows/ci.yml/badge.svg)
+![tests](https://img.shields.io/badge/tests-207%20pass%20%2F%200%20fail-brightgreen)
+![live](https://img.shields.io/badge/data-LIVE%20(testnet)-blue)
+
 ---
 
 ## 1. Overview
