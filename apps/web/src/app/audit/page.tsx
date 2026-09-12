@@ -186,7 +186,7 @@ export default function AuditPage() {
           </button>
         </div>
         {hashscanTopic ? (
-          <a className="btn btn-primary btn-block" style={{ marginTop: 10 }} href={hashscanTopic} target="_blank" rel="noreferrer">
+          <a className="btn btn-primary btn-block" style={{ marginTop: 10 }} href={hashscanTopic} target="_blank" rel="noreferrer" suppressHydrationWarning>
             🔗 View Topic on HashScan
           </a>
         ) : null}

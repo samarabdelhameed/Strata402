@@ -30,6 +30,14 @@ def get_engine(request: Request) -> RiskEngine:
     return request.app.state.engine
 
 
+def get_saucerswap(request: Request) -> Any:
+    return getattr(request.app.state, "saucerswap", None)
+
+
+def get_bonzo(request: Request) -> Any:
+    return getattr(request.app.state, "bonzo", None)
+
+
 @router.post(
     "/v1/strategy/yield-risk",
     response_model=YieldRiskResponse,
@@ -39,7 +47,29 @@ async def yield_risk(request: Request, body: YieldRiskRequest) -> YieldRiskRespo
     engine = get_engine(request)
     settings = engine.settings
     mirror = get_mirror(request)
+    saucerswap = get_saucerswap(request)
+    bonzo = get_bonzo(request)
     now_seconds = int(time.time())
+
+    ss_tokens = None
+    ss_pools = None
+    if settings.saucerswap_enabled and saucerswap is not None:
+        try:
+            ss_tokens = await saucerswap.read_tokens()
+            ss_pools = await saucerswap.read_pools()
+        except Exception:
+            # Graceful degradation - failed read on SaucerSwap never blocks yield-risk
+            ss_tokens = None
+            ss_pools = None
+
+    bonzo_read = None
+    if settings.bonzo_enabled and bonzo is not None:
+        # Real Bonzo Lend probe. The adapter itself returns a pending stub (never
+        # fabricated numbers) when the documented source is unreachable/non-200.
+        try:
+            bonzo_read = await bonzo.read_market()
+        except Exception:
+            bonzo_read = None
 
     try:
         read = await mirror.read_account_snapshot(
@@ -48,7 +78,15 @@ async def yield_risk(request: Request, body: YieldRiskRequest) -> YieldRiskRespo
             window_seconds=DEFAULT_RECENT_WINDOW_SECONDS,
             stale_after_seconds=DEFAULT_STALE_AFTER_SECONDS,
         )
-        response = analyze_read(read, body, settings, now_seconds)
+        response = analyze_read(
+            read,
+            body,
+            settings,
+            now_seconds,
+            saucerswap_tokens=ss_tokens,
+            saucerswap_pools=ss_pools,
+            bonzo_read=bonzo_read,
+        )
     except Exception as exc:  # degraded-but-honest, never a bare crash
         response = analyze_degraded(body, settings, exc)
 

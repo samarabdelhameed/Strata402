@@ -28,9 +28,9 @@ export const DISCLAIMER =
   "predictions, yield guarantees, or any promise of return.";
 
 export const ANALYSIS_LIMITATIONS = [
-  "No protocol-specific APY data",
-  "No SaucerSwap adapter",
-  "No Bonzo adapter",
+  "No live protocol APY data claimed",
+  "SaucerSwap read-only metrics available (APY unavailable)",
+  "Bonzo lending matrix pending: no live Bonzo Lend source proven",
   "No automatic fund movement",
 ] as const;
 

@@ -73,7 +73,7 @@ export default function OrdersPage() {
         const id = ++orderSeq;
         setOrders((prev) => [{ id, side, price, amount: Number(cleanAmount), tx: json.transactionId }, ...prev]);
         setNotice(
-          `Intent published to HCS${json.sequenceNumber ? ` as seq ${json.sequenceNumber}` : ""} (${json.reason}). Execution is PENDING until official SaucerSwap keys exist.`,
+          `Intent published to HCS${json.sequenceNumber ? ` as seq ${json.sequenceNumber}` : ""} (${json.reason}). Swap execution remains PENDING (read-only SaucerSwap is live; APY unavailable).`,
         );
       } else {
         setError(`${json.reason}: ${json.error ?? "cannot publish on this deployment"}`);
@@ -110,72 +110,78 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        <div className="section-title">Create Limit Order</div>
-        <div className="card">
-          <div className="toggle-pair">
-            <button className={side === "buy" ? "active" : ""} onClick={() => setSide("buy")}>Buy HBAR</button>
-            <button className={side === "sell" ? "active" : ""} onClick={() => setSide("sell")}>Sell HBAR</button>
-          </div>
-          <div className="field">
-            <label>TARGET PRICE (USDC)</label>
-            <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" placeholder="0.0720" />
-          </div>
-          <div className="field">
-            <label>AMOUNT (HBAR)</label>
-            <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="10,000" />
-          </div>
-          <div className="field">
-            <label>EXPIRY</label>
-            <div className="expiry-row">
-              <button className={expiry === 7 ? "active" : ""} onClick={() => setExpiry(7)}>7 Days</button>
-              <button className={expiry === 30 ? "active" : ""} onClick={() => setExpiry(30)}>30 Days</button>
-              <button className={expiry === 0 ? "active" : ""} onClick={() => setExpiry(0)}>Never</button>
-            </div>
-          </div>
-          {!enabled ? (
-            <div className="note" style={{ marginTop: 12 }}>
-              HCS intent publishing is closed on this deployment ({reason}). Start the web server with
-              the payer key + HCS_AUDIT_TOPIC_ID to write real on-chain intents.
-            </div>
-          ) : null}
-          {error ? <div className="error-box" style={{ marginTop: 12 }}>{error}</div> : null}
-          <button className="btn btn-primary btn-block" style={{ marginTop: 16 }} onClick={createOrder} disabled={!formValid}>
-            {busy ? "Publishing to HCS…" : "🚀 Create Onchain Limit Order"}
-          </button>
-          <div className="note" style={{ marginTop: 8, textAlign: "center" }}>
-            Writes a real signed intent to HCS 0.0.10483725 · execution gated
-          </div>
-        </div>
-
-        {notice ? (
-          <div className="card" style={{ marginTop: 12, borderLeft: "3px solid var(--emerald)" }}>
-            <div className="mono" style={{ fontSize: 11.5, color: "var(--emerald)" }}>✓ {notice}</div>
-          </div>
-        ) : null}
-
-        <div className="section-title">Active Orders</div>
-        <div className="card">
-          {orders.length === 0 ? (
-            <div className="note" style={{ textAlign: "center", padding: 12 }}>
-              No on-chain intents this session yet. Create one above — it is published to the real HCS
-              audit topic immediately.
-            </div>
-          ) : null}
-          {orders.map((o) => (
-            <div className="order-row" key={o.id}>
-              <div>
-                <div style={{ fontWeight: 600 }}>#{o.id} · HBAR/USDC</div>
-                <div style={{ color: "var(--text-tertiary)", fontSize: 10.5, marginTop: 2, wordBreak: "break-all" }}>
-                  {o.side === "buy" ? "Buy" : "Sell"} · ${o.price} USDC · {o.amount} HBAR
-                  {o.tx ? ` · 0x…${o.tx.slice(-10)}` : ""}
+        <div className="orders-layout">
+          <div>
+            <div className="section-title">Create Limit Order</div>
+            <div className="card">
+              <div className="toggle-pair">
+                <button className={side === "buy" ? "active" : ""} onClick={() => setSide("buy")}>Buy HBAR</button>
+                <button className={side === "sell" ? "active" : ""} onClick={() => setSide("sell")}>Sell HBAR</button>
+              </div>
+              <div className="field">
+                <label>TARGET PRICE (USDC)</label>
+                <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" placeholder="0.0720" />
+              </div>
+              <div className="field">
+                <label>AMOUNT (HBAR)</label>
+                <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="10,000" />
+              </div>
+              <div className="field">
+                <label>EXPIRY</label>
+                <div className="expiry-row">
+                  <button className={expiry === 7 ? "active" : ""} onClick={() => setExpiry(7)}>7 Days</button>
+                  <button className={expiry === 30 ? "active" : ""} onClick={() => setExpiry(30)}>30 Days</button>
+                  <button className={expiry === 0 ? "active" : ""} onClick={() => setExpiry(0)}>Never</button>
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span className="pending-chip">Pending</span>
-                <button className="cancel-btn" onClick={() => cancelOrder(o.id)}>Cancel</button>
+              {!enabled ? (
+                <div className="note" style={{ marginTop: 12 }}>
+                  HCS intent publishing is closed on this deployment ({reason}). Start the web server with
+                  the payer key + HCS_AUDIT_TOPIC_ID to write real on-chain intents.
+                </div>
+              ) : null}
+              {error ? <div className="error-box" style={{ marginTop: 12 }}>{error}</div> : null}
+              <button className="btn btn-primary btn-block" style={{ marginTop: 16 }} onClick={createOrder} disabled={!formValid}>
+                {busy ? "Publishing to HCS…" : "🚀 Create Onchain Limit Order"}
+              </button>
+              <div className="note" style={{ marginTop: 8, textAlign: "center" }}>
+                Writes a real signed intent to HCS 0.0.10483725 · execution gated
               </div>
             </div>
-          ))}
+
+            {notice ? (
+              <div className="card" style={{ marginTop: 12, borderLeft: "3px solid var(--emerald)" }}>
+                <div className="mono" style={{ fontSize: 11.5, color: "var(--emerald)" }}>✓ {notice}</div>
+              </div>
+            ) : null}
+          </div>
+
+          <div>
+            <div className="section-title">Active Orders</div>
+            <div className="card">
+              {orders.length === 0 ? (
+                <div className="note" style={{ textAlign: "center", padding: 12 }}>
+                  No on-chain intents this session yet. Create one above — it is published to the real HCS
+                  audit topic immediately.
+                </div>
+              ) : null}
+              {orders.map((o) => (
+                <div className="order-row" key={o.id}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>#{o.id} · HBAR/USDC</div>
+                    <div style={{ color: "var(--text-tertiary)", fontSize: 10.5, marginTop: 2, wordBreak: "break-all" }}>
+                      {o.side === "buy" ? "Buy" : "Sell"} · ${o.price} USDC · {o.amount} HBAR
+                      {o.tx ? ` · 0x…${o.tx.slice(-10)}` : ""}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span className="pending-chip">Pending</span>
+                    <button className="cancel-btn" onClick={() => cancelOrder(o.id)}>Cancel</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </AppFrame>

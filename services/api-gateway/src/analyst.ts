@@ -4,9 +4,10 @@
  *
  * Honesty contract (approved scope):
  * - Only on-chain facts published by the Hedera Mirror Node are used.
- * - Protocol-specific claims (live pool APY, SaucerSwap/Bonzo liquidity, smart
- *   contract risk) are explicitly NOT made; they appear in `unavailable` and
- *   `limitations`. No `riskScore` / `confidence` numbers are invented.
+ * - Protocol-specific claims (live pool APY, protocol liquidity, Bonzo data,
+ *   smart-contract risk) are explicitly NOT made; they appear in `unavailable`
+ *   and `limitations`. SaucerSwap read-only facts may enrich elsewhere; APY is
+ *   never invented. No `riskScore` / `confidence` numbers are invented.
  * - The request body is validated against the shared yield-risk contract:
  *   `accountId` (required, valid Hedera id), `riskTolerance`
  *   (conservative | balanced | aggressive), `amountHbar` (positive, safe
@@ -49,7 +50,6 @@ export const UNVAILABLE_FEATURES = [
   "live pool APY",
   "protocol liquidity",
   "smart-contract risk",
-  "SaucerSwap data",
   "Bonzo data",
 ] as const;
 
@@ -461,7 +461,15 @@ async function tryAiEngine(
     return null;
   }
   try {
-    const call = await deps.aiEngine.callYieldRisk(requestBody);
+    let bodyPayload = requestBody;
+    if (typeof requestBody === "string") {
+      try {
+        bodyPayload = JSON.parse(requestBody);
+      } catch {
+        bodyPayload = requestBody;
+      }
+    }
+    const call = await deps.aiEngine.callYieldRisk(bodyPayload);
     if (!call.ok || !isValidAiEngineResponse(call.body)) {
       return null;
     }

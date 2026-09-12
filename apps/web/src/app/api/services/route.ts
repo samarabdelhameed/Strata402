@@ -42,21 +42,21 @@ export async function GET() {
     [
       {
         id: "saucerswap",
-        name: "SaucerSwap AutoSwap",
-        status: "pending" as const,
-        note: "Gated: requires official SaucerSwap testnet routing keys. No fabricated fills.",
+        name: "SaucerSwap Read-Only Adapter",
+        status: "available" as const,
+        note: "Keyless Testnet API (test-api.saucerswap.finance): tokens + V2 pools read-only. APY unavailable.",
       },
       {
         id: "bonzo",
-        name: "Bonzo Finance Lending",
+        name: "Bonzo Finance Read-Only Lending",
         status: "pending" as const,
-        note: "Gated: requires official Bonzo testnet protocol keys. No fabricated APY.",
+        note: "No eligible live Bonzo Testnet API wired. Not claimed as live market data.",
       },
       {
         id: "hcs-14",
-        name: "HCS-14 Autonomous Economy",
+        name: "HCS-14 Standardized Discovery",
         status: "pending" as const,
-        note: "Gated: published on HCS audit topic, execution pending protocol rollout.",
+        note: "HCS-14 agent discovery/registry not proven live in this build. HCS audit topic is separate.",
       },
     ],
   );

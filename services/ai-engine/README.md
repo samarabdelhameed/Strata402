@@ -45,4 +45,8 @@ integration path against the public testnet mirror.
 | :-- | :-- | :-- |
 | `STRATA402_MIRROR_BASE_URL` | `https://testnet.mirrornode.hedera.com` | mirror reads |
 | `STRATA402_NETWORK` | `hedera:testnet` | network label |
+| `SAUCERSWAP_API_URL` | `https://test-api.saucerswap.finance` | keyless SaucerSwap Testnet API (no key) |
+| `SAUCERSWAP_ENABLED` | `true` | toggle SaucerSwap enrichment |
+| `BONZO_API_URL` | `https://data.bonzo.finance` | Bonzo Lend data probe; fails closed to `pending` |
+| `BONZO_ENABLED` | `true` | toggle Bonzo Lend enrichment |
 | `LLM_PROVIDER` / `LLM_MODEL` / `LLM_API_KEY` | empty | optional LLM narration hook (off) |

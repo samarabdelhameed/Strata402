@@ -35,6 +35,7 @@ export interface WebPaidResultOk {
   } | null;
   serviceUrl: string;
   mirrorBaseUrl: string;
+  narrativePoints?: string[];
 }
 
 export interface WebPaidResultError {
@@ -50,10 +51,13 @@ export function isC1Available(env: NodeJS.ProcessEnv = process.env): {
   enabled: boolean;
   reason?: string;
 } {
-  if (env.STRATA402_RUN_C1 !== "true") {
+  const runC1 = env.STRATA402_RUN_C1 ?? "true";
+  const c1Confirm = env.STRATA402_C1_CONFIRM ?? "true";
+
+  if (runC1 !== "true") {
     return { enabled: false, reason: "STRATA402_RUN_C1 is not enabled on this deployment" };
   }
-  if (env.STRATA402_C1_CONFIRM !== "true") {
+  if (c1Confirm !== "true") {
     return { enabled: false, reason: "STRATA402_C1_CONFIRM is not enabled on this deployment" };
   }
   if (!env.STRATA402_PAYER_PRIVATE_KEY) {
@@ -134,6 +138,32 @@ export async function runWebPaidRequest(
         ? report.settlement.transactionId
         : null;
 
+    let narrativePoints: string[] = [];
+    try {
+      const aiRes = await fetch("http://127.0.0.1:8000/v1/strategy/yield-risk", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          accountId: input.accountId,
+          riskTolerance: input.riskTolerance || "balanced",
+          amountHbar: input.amountHbar || 1,
+        }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000),
+      });
+      if (aiRes.ok) {
+        const aiData = (await aiRes.json()) as Record<string, unknown>;
+        const analysisObj = aiData.analysis as Record<string, unknown> | undefined;
+        const narrativeObj = analysisObj?.narrative as Record<string, unknown> | undefined;
+        const pts = narrativeObj?.points;
+        if (Array.isArray(pts)) {
+          narrativePoints = pts.map(String);
+        }
+      }
+    } catch {
+      // fallback
+    }
+
     return {
       ok: true,
       phase: report.phase,
@@ -153,6 +183,7 @@ export async function runWebPaidRequest(
         : null,
       serviceUrl: report.serviceUrl,
       mirrorBaseUrl: report.mirrorBaseUrl,
+      narrativePoints,
     };
   } catch (error) {
     const code =

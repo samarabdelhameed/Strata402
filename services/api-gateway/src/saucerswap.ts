@@ -2,7 +2,8 @@
  * Strata402 api-gateway — keyless SaucerSwap FINANCE public data adapter (gateway side).
  *
  * Mirrors the exact discipline of `mirror.ts` in this same gateway:
- * - Keyless, read-only GETs against the public SaucerSwap FINANCE REST API.
+ * - Keyless, read-only GETs against SaucerSwap Testnet REST API
+ *   (https://test-api.saucerswap.finance). No API key required.
  * - Return only typed facts published on the wire; never a partial guess.
  * - **APY is ALWAYS UNAVAILABLE.** The public pools endpoint exposes fee tiers,
  *   reserves, prices, and identity facts — but NO historical volume or fee-earnings
@@ -13,7 +14,10 @@
  *   `SaucerReadError`; no fabricated pool fact is ever returned.
  */
 
-export const SAUCER_BASE_URL = "https://api.saucerswap.finance";
+export const SAUCER_BASE_URL =
+  (typeof process !== "undefined" &&
+    (process.env.SAUCERSWAP_API_URL || process.env.SAUCERSWAP_BASE_URL)?.trim()) ||
+  "https://test-api.saucerswap.finance";
 export const SAUCER_TOKENS_PATH = "/tokens";
 export const SAUCER_POOLS_FULL_PATH = "/v2/pools/full";
 export const SAUCER_TIMEOUT_SECONDS = 20;

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { useApi } from "@/hooks/useApi";
 
 export const DEFAULT_ACCOUNT = "0.0.10329902";
@@ -52,13 +52,13 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   const priceDisplay = availability.data?.priceDisplay ?? "0.01 HBAR";
   const closed = availability.data && availability.data.enabled !== true;
 
-  const openPay = (nextTitle: string, nextSubtitle?: string) => {
+  const openPay = useCallback((nextTitle: string, nextSubtitle?: string) => {
     setTitle(nextTitle);
     setSubtitle(nextSubtitle ?? "Settled via Blocky402 · Hedera testnet");
     setStep("idle");
     setResult(null);
     setOpen(true);
-  };
+  }, []);
 
   const value = useMemo(() => ({ openPay }), [openPay]);
 
@@ -119,7 +119,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
               <div className="sub">{subtitle}</div>
             </div>
             <div className="brand-mark" style={{ width: 36, height: 36 }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#00151A" stroke-width="2.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#00151A" strokeWidth="2.5">
                 <path d="M4 17L10 11L14 15L20 7" />
                 <path d="M14 7h6v6" />
               </svg>
@@ -152,6 +152,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
                       href={`https://hashscan.io/testnet/transaction/${result.settlement.transactionId}`}
                       target="_blank"
                       rel="noreferrer"
+                      suppressHydrationWarning
                     >
                       {result.settlement.transactionId.slice(0, 12)}… ↗
                     </a>

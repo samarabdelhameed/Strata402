@@ -99,16 +99,40 @@ Flow components:
 | API Gateway | **Done** | Express, x402 v2 middleware, Mirror Node reads, yield-risk endpoint |
 | Shared SDK (`packages/x402-sdk`) | **Done** | Canonical constants, service catalog, yield-risk contract |
 | Consuming Agent | **Done** | Discovery, challenge, x402 payment, retry, Mirror verification |
-| AI Engine | **Done** | Deterministic narration over real mirror facts; honest `unavailable` set |
+| AI Engine | **Done** | Deterministic narration over real mirror facts + SaucerSwap Read-Only integration |
+| SaucerSwap Adapter | **Done** | Read-only live DEX snapshot (`/tokens` & `/v2/pools/full`), APY explicitly `UNAVAILABLE` |
+| Bonzo Data Adapter | **Pending** | Real probe of `data.bonzo.finance`; fails closed to `pending` (no fabricated APY/reserves) |
+| HSCS Smart Contracts | **Deployed** | Solidity 0.8.24 contracts deployed & verified on Hedera Testnet |
+| Dual Contract Toolchain | **Done** | Hardhat (`npx hardhat compile`) + Foundry (`forge build`) |
 | HCS Audit Logging | **Done** | Live topic `0.0.10483725`, 7+ real records |
 | Hardened Request Contract | **Done** | Shared `{ accountId, riskTolerance, amountHbar }` — 400 before any read |
 | Fail-Closed Payment Validation | **Done** | Wrong network/asset/amount/scheme → rejected, zero signed requests |
 | Mirror Node Analysis | **Done** | Honest account-level on-chain facts with freshness + limitations |
-| Web UI (`apps/web`) | **Done** | Dashboard, AI Studio, HCS Auditor, AutoSwap orders (honest gates), paid flow |
-| AutoSwap integrators | **Honest gate** | SaucerSwap / Bonzo / HCS-14 shown `PENDING` — no fabricated fills |
+| Web UI (`apps/web`) | **Done** | Dashboard, AI Studio, HCS Auditor, AutoSwap orders, live SaucerSwap pool listings |
 
-**Explicitly out of scope (truthful):** Smart contract deployment, live
-SaucerSwap/Bonzo execution (awaiting official protocol keys), HTS payments.
+---
+
+## 5. Deployed Smart Contracts (Hedera Testnet HSCS)
+
+| Contract Name | EVM Address | Hedera Contract ID | HashScan Explorer Link |
+| :--- | :--- | :--- | :--- |
+| **AgentRegistryHCS14** | `0xD9A2C06f68E904F4a0d7c40C7e4fb0239F42A6aC` | `0.0.10506191` | [View on HashScan](https://hashscan.io/testnet/contract/0xD9A2C06f68E904F4a0d7c40C7e4fb0239F42A6aC) |
+| **AutoSwapLimit Engine** | `0xbB1c5210B395253B66eA8B8326083c7fD63E2978` | `0.0.10506192` | [View on HashScan](https://hashscan.io/testnet/contract/0xbB1c5210B395253B66eA8B8326083c7fD63E2978) |
+| **HederaYieldVault** | `0xF2BC42767Ed6c324d6309c4200af4587880aAf85` | `0.0.10506193` | [View on HashScan](https://hashscan.io/testnet/contract/0xF2BC42767Ed6c324d6309c4200af4587880aAf85) |
+
+- **Deployer EVM Account**: `0xFe5D68a652612DC5961E2B7791b98aC3165DB498`
+- **Compiler**: Solidity `^0.8.24` (EVM target: `cancun`, 200 optimizer runs)
+
+### Smart Contract Toolchains:
+```bash
+# Hardhat compilation
+cd contracts
+npx hardhat compile
+
+# Foundry compilation
+cd contracts
+forge build
+```
 
 ---
 
@@ -130,30 +154,34 @@ cp .env.example .env
 
 ### Run the Gateway
 ```bash
-bun services/api-gateway/src/index.ts
+bun run dev
+# or: bun run dev:gateway
 # Gateway runs at http://localhost:8080   (/health → 200)
 ```
 
-### Run the AI Engine (optional, enables narration)
+### Run the AI Engine (optional, enables narration + SaucerSwap enrichment)
 ```bash
-bun services/ai-engine/...
+cd services/ai-engine
+python -m venv .venv && source .venv/bin/activate   # once
+pip install -r requirements.txt                     # once
+uvicorn app.main:app --reload --port 8000
+# or from repo root: bun run dev:ai-engine
 # Engine runs at http://localhost:8000
 ```
 
 ### Run the Web UI (dev)
 ```bash
-cd apps/web
-bun install
-echo "STRATA402_RUN_C1=true" >> ../.env       # enable live paid flow on the server
-echo "STRATA402_C1_CONFIRM=true" >> ../.env
-STRATA402_RUN_C1=true STRATA402_C1_CONFIRM=true bun dev
+bun run dev:web
 # Web UI at http://localhost:3000
+# Paid C1 flow (spends real testnet HBAR) only when both gates are set:
+#   STRATA402_RUN_C1=true STRATA402_C1_CONFIRM=true
 ```
 
 ### Run the Consuming Agent (CLI C1 paid request)
 ```bash
 # Requires STRATA402_ALLOWED_PAYTO / STRATA402_PAYER_* / X402_FACILITATOR_URL
-STRATA402_RUN_C1=true STRATA402_C1_CONFIRM=true bun apps/consuming-agent/src/cli-c1-paid.ts
+# Spends real testnet HBAR — leave off for unpaid 402 demo recording.
+STRATA402_RUN_C1=true STRATA402_C1_CONFIRM=true bun run preflight:c1
 ```
 
 ---
@@ -223,10 +251,11 @@ verification, and fail-closed security cases.
 Strata402 treats not-invented-here as a feature:
 
 - **No `riskScore`/`confidence`** — never produced.
-- **`unavailable[]`** lists live pool APY, SaucerSwap data, Bonzo data until
-  they are genuinely integrated.
-- **AutoSwap orders** show an explicit `PENDING` gate pending official
-  SaucerSwap/Bonzo protocol keys — no fabricated fills.
+- **`unavailable[]`** lists live pool APY, protocol liquidity, smart-contract
+  risk, and Bonzo data. SaucerSwap Testnet read-only facts are allowed; APY
+  remains explicitly unavailable.
+- **Bonzo / HCS-14** stay `pending` until an eligible live source is proven —
+  no fabricated fills or “Active” badges.
 - Every response carries `source: "hedera-mirror-node"`, `scope`, freshness
   health, and a **disclaimer**: *"This information is not financial advice."*
 
@@ -248,6 +277,11 @@ Strata402 treats not-invented-here as a feature:
 | `X402_FACILITATOR_URL` | Blocky402 facilitator | `https://x402.org/facilitator` |
 | `X402_PRICE_TINYBARS` | Price per call | `1000000` |
 | `PORT` | Gateway listen port | `8080` |
+| `SAUCERSWAP_API_URL` | Keyless SaucerSwap Testnet API | `https://test-api.saucerswap.finance` |
+| `SAUCERSWAP_ENABLED` | Toggle SaucerSwap enrichment (ai-engine) | `true` |
+| `BONZO_API_URL` | Bonzo Lend data probe | `https://data.bonzo.finance` |
+| `BONZO_ENABLED` | Toggle Bonzo Lend enrichment (ai-engine) | `true` |
+| `AI_ENGINE_URL` | Optional ai-engine base for gateway | `http://localhost:8000` |
 
 Secrets live only in `.env` (gitignored). Nothing secret ever reaches the
 browser — all paid signing happens server-side.
@@ -267,10 +301,10 @@ browser — all paid signing happens server-side.
 
 ## 11. What Is NOT Claimed
 
-- Working SaucerSwap/Bonzo execution (adapters gated, awaiting official keys)
+- Working SaucerSwap/Bonzo **execution** (swap/lend). SaucerSwap **read-only** Testnet
+  pools/tokens are live and keyless; APY stays unavailable. Bonzo remains pending.
 - Live pool APY data
 - Automated fund movement or trading
-- Smart contract deployment
 - Any `riskScore` / `confidence` / return guarantee
 - Any price prediction or financial advice
 
@@ -288,6 +322,7 @@ strata402/
 ├── services/
 │   ├── api-gateway/              # Express gateway + x402 v2 + Mirror reads (:8080)
 │   └── ai-engine/                # deterministic narration engine (:8000)
+├── contracts/                        # Hardhat + Foundry HSCS Solidity
 ├── tests/
 │   ├── unit/                     # contract parsing, handler fixture tests
 │   └── integration/              # live gateway, Mirror, C1 full flow
@@ -301,7 +336,7 @@ strata402/
 | Phase | Description |
 | :--- | :--- |
 | Shipped | Deterministic AI engine · HCS audit logging · Web UI with real-data dashboards |
-| Next | AutoSwap + Bonzo official protocol integration (gated until keys exist) |
+| Next | AutoSwap execution + Bonzo live source (gated until eligible) |
 
 ## License
 

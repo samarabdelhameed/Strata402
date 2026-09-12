@@ -75,7 +75,8 @@ if curl -s -o /dev/null --max-time 2 http://127.0.0.1:3000/; then
 else
   if [[ "$do_web_build" == true ]]; then
     echo "==> building web (standalone) ..."
-    (cd "$WEB_DIR" && bun run build) || { echo "!! web build failed" >&2; exit 1; }
+    (cd "$WEB_DIR" && "$ROOT/node_modules/.bin/next" build) || { echo "!! web build failed" >&2; exit 1; }
+    mkdir -p "$WEB_DIR/.next/standalone/apps/web/.next"
     cp -R "$WEB_DIR/.next/static" "$WEB_DIR/.next/standalone/apps/web/.next/static"
   fi
   echo "==> starting web :3000 ..."

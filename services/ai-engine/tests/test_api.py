@@ -32,9 +32,56 @@ async def test_valid_contract_returns_deterministic_success(client) -> None:
     assert analysis["narrative"]["llm"] is False
     assert analysis["observed"]["account"]["accountId"] == "0.0.7777"
     assert "live pool APY" in analysis["unavailable"]
+    assert "Bonzo data" in analysis["unavailable"]
+    assert analysis.get("derivedMetrics", {}).get("bonzo", {}).get("status") != "available"
     assert "riskScore" not in analysis
     assert "confidence" not in analysis
     assert body["disclaimer"]
+
+
+@pytest.mark.anyio
+async def test_bonzo_pending_gate_never_fabricates_reserves(client) -> None:
+    # The fake Bonzo probe returns 503 (same as the real source today). The
+    # derived block must stay pending with zero reserves and a failure code.
+    res = await client.post("/v1/strategy/yield-risk", json={
+        "accountId": "0.0.7777",
+        "riskTolerance": "balanced",
+        "amountHbar": 100,
+    })
+    assert res.status_code == 200
+    bonzo = res.json()["analysis"]["derivedMetrics"]["bonzo"]
+    assert bonzo["status"] == "pending"
+    assert bonzo["reservesCount"] == 0
+    assert bonzo["reserves"] == []
+    assert bonzo["apyStatus"] == "UNAVAILABLE"
+    assert bonzo["errorCode"] == "HTTP_STATUS"
+    assert "no fabricated reserves" in bonzo["note"].lower() or "pending" in bonzo["note"].lower()
+
+
+@pytest.mark.anyio
+async def test_bonzo_available_uses_only_wire_facts(client) -> None:
+    bonzo = client.state["bonzo"]
+    bonzo._fetch.available = True
+    res = await client.post("/v1/strategy/yield-risk", json={
+        "accountId": "0.0.7777",
+        "riskTolerance": "balanced",
+        "amountHbar": 100,
+    })
+    assert res.status_code == 200
+    derived = res.json()["analysis"]["derivedMetrics"]["bonzo"]
+    assert derived["status"] == "available"
+    assert derived["reservesCount"] == 2
+    symbols = [r["symbol"] for r in derived["reserves"]]
+    assert symbols == ["HBAR", "SAUCE"]
+    sauce = next(r for r in derived["reserves"] if r["symbol"] == "SAUCE")
+    assert sauce["tokenId"] == "0.0.1183558"
+    assert sauce["ltvPercent"] == 0.6
+    # No supply_apy on the wire for SAUCE -> APY stays UNAVAILABLE per reserve.
+    assert sauce.get("supplyApy") is None
+    assert sauce["apyStatus"] == "UNAVAILABLE"
+    hbar = next(r for r in derived["reserves"] if r["symbol"] == "HBAR")
+    assert hbar["supplyApy"] == 0.04
+    assert derived["apyStatus"] == "available"
 
 
 @pytest.mark.anyio

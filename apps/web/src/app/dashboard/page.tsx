@@ -105,6 +105,46 @@ function ActivityChart({ buckets }: { buckets: Array<{ label: string; count: num
   );
 }
 
+interface SaucerPool {
+  id: number;
+  contractId: string;
+  pair: string;
+  feeTierPercent: string;
+  liquidity: string;
+  apyStatus: string;
+}
+
+interface SaucerSwapResponse {
+  ok: boolean;
+  readOnly?: boolean;
+  tokenCount?: number;
+  poolCount?: number;
+  pools?: SaucerPool[];
+  error?: string;
+}
+
+interface BonzoReserve {
+  symbol: string;
+  tokenId: string;
+  ltvPercent: number | null;
+  liquidationThresholdPercent: number | null;
+  reserveFactorPercent: number | null;
+  supplyApy?: number;
+  apyStatus: string;
+}
+
+interface BonzoResponse {
+  ok: boolean;
+  status?: string;
+  readOnly?: boolean;
+  protocol?: string;
+  reservesCount?: number;
+  reserves?: BonzoReserve[];
+  message?: string;
+  apyStatus?: string;
+  error?: string;
+}
+
 export default function DashboardPage() {
   const { openPay } = usePayment();
   const account = useApi<AccountResponse>(`/api/account?accountId=${DEFAULT_ACCOUNT}`, 30_000);
@@ -112,6 +152,8 @@ export default function DashboardPage() {
     `/api/tx-activity?accountId=${DEFAULT_ACCOUNT}&buckets=12`,
     30_000,
   );
+  const saucerswap = useApi<SaucerSwapResponse>("/api/saucerswap", 60_000);
+  const bonzo = useApi<BonzoResponse>("/api/bonzo", 60_000);
 
   const balance = account.data?.exists ? Number(account.data.balanceHbar).toFixed(2) : "…";
   const net = Number(activity.data?.netHbar ?? 0);
@@ -137,44 +179,50 @@ export default function DashboardPage() {
           </span>
         </div>
 
-        <div className="card" style={{ padding: "16px 8px" }}>
-          <Gauge
-            fraction={fraction}
-            center={balance}
-            label="HBAR BALANCE"
-          />
-          <div className="stagger" style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 8px" }}>
-            <div className="stat-tile">
-              <div className="label">30D FLOW IN</div>
-              <div className="value emerald" style={{ fontSize: 15 }}>{activity.data ? `${activity.data.inflowHbar}` : "…"}</div>
+        <div className="dash-split">
+          <div className="card" style={{ padding: "16px 8px" }}>
+            <Gauge
+              fraction={fraction}
+              center={balance}
+              label="HBAR BALANCE"
+            />
+            <div className="stat-grid" style={{ marginTop: 12 }}>
+              <div className="stat-tile">
+                <div className="label">30D TX COUNT</div>
+                <div className="value">{activity.data ? activity.data.total : "…"}</div>
+              </div>
+              <div className="stat-tile">
+                <div className="label">30D FLOW IN</div>
+                <div className="value" style={{ fontSize: 15 }}>{activity.data ? activity.data.inflowHbar : "…"}</div>
+              </div>
+              <div className="stat-tile">
+                <div className="label">30D FLOW OUT</div>
+                <div className="value" style={{ fontSize: 15 }}>{activity.data ? activity.data.outflowHbar : "…"}</div>
+              </div>
             </div>
-            <div className="stat-tile">
-              <div className="label">30D FLOW OUT</div>
-              <div className="value" style={{ fontSize: 15 }}>{activity.data ? activity.data.outflowHbar : "…"}</div>
+            <div className="note" style={{ marginTop: 10, textAlign: "center" }}>
+              Real on-chain facts from the public Mirror Node · {activity.data?.total ?? "…"} txs observed
+              {activity.data?.error ? ` · ${activity.data.error}` : ""}
             </div>
           </div>
-          <div className="note" style={{ marginTop: 10, textAlign: "center" }}>
-            Real on-chain facts from the public Mirror Node · {activity.data?.total ?? "…"} txs observed
-            {activity.data?.error ? ` · ${activity.data.error}` : ""}
-          </div>
-        </div>
 
-        <div className="card chart-card" style={{ marginTop: 14 }}>
-          <div className="chart-head">
-            <div>
-              <div className="eyebrow">ACCOUNT ACTIVITY</div>
-              <div className="big-num">{activity.data ? `${activity.data.total} TX` : "…"}</div>
+          <div className="card chart-card">
+            <div className="chart-head">
+              <div>
+                <div className="eyebrow">ACCOUNT ACTIVITY</div>
+                <div className="big-num">{activity.data ? `${activity.data.total} TX` : "…"}</div>
+              </div>
+              <div className="delta">{activity.data ? `${net} HBAR net` : "…"}</div>
             </div>
-            <div className="delta">{activity.data ? `${net} HBAR net` : "…"}</div>
-          </div>
-          {activity.loading && !activity.data ? <div className="skeleton" style={{ height: 90, marginTop: 10 }} /> : null}
-          {activity.data?.buckets?.length ? <ActivityChart buckets={activity.data.buckets} /> : null}
-          {activity.data?.error && !activity.data.buckets.length ? (
-            <div className="error-box" style={{ marginTop: 10 }}>{activity.data.error}</div>
-          ) : null}
-          <div className="timeframes">
-            <span className="tf active">Live</span>
-            <span className="tf">{frame ? `${frame.label}` : "—"}</span>
+            {activity.loading && !activity.data ? <div className="skeleton" style={{ height: 90, marginTop: 10 }} /> : null}
+            {activity.data?.buckets?.length ? <ActivityChart buckets={activity.data.buckets} /> : null}
+            {activity.data?.error && !activity.data.buckets.length ? (
+              <div className="error-box" style={{ marginTop: 10 }}>{activity.data.error}</div>
+            ) : null}
+            <div className="timeframes">
+              <span className="tf active">Live</span>
+              <span className="tf">{frame ? `${frame.label}` : "—"}</span>
+            </div>
           </div>
         </div>
 
@@ -196,86 +244,127 @@ export default function DashboardPage() {
           Run AI Portfolio Health Scan
         </button>
 
-        <div className="section-title">SaucerSwap V2 Pools</div>
+        <div className="section-title">
+          SaucerSwap V2 Pools
+          {saucerswap.data?.poolCount ? (
+            <span style={{ fontSize: 11, color: "var(--emerald)", fontWeight: 400, marginLeft: 8 }}>
+              {saucerswap.data.poolCount} pools observed · {saucerswap.data.tokenCount} tokens
+            </span>
+          ) : null}
+        </div>
         <div className="card">
           <table className="data-table">
             <thead>
               <tr>
                 <th>Pool</th>
-                <th>TVL</th>
+                <th>Fee Tier</th>
+                <th>Contract</th>
                 <th>APY</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>
-                  <div className="pair-cell">
-                    <span className="coin-dot" style={{ background: "linear-gradient(135deg,#8247e5,#c2a2ff)" }}></span>
-                    HBAR/USDC
-                  </div>
-                </td>
-                <td>—</td>
-                <td>—</td>
-                <td><button className="mini-btn" disabled>Gated</button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div className="pair-cell">
-                    <span className="coin-dot" style={{ background: "linear-gradient(135deg,#00E676,#1DE9B6)" }}></span>
-                    HBAR/SAUCE
-                  </div>
-                </td>
-                <td>—</td>
-                <td>—</td>
-                <td><button className="mini-btn" disabled>Gated</button></td>
-              </tr>
+              {saucerswap.data?.pools?.length ? (
+                saucerswap.data.pools.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <div className="pair-cell">
+                        <span className="coin-dot" style={{ background: "linear-gradient(135deg,#00E676,#1DE9B6)" }}></span>
+                        {p.pair}
+                      </div>
+                    </td>
+                    <td>{p.feeTierPercent}</td>
+                    <td style={{ fontFamily: "monospace", fontSize: 11 }}>{p.contractId}</td>
+                    <td>
+                      <span className="risk-tag warn" style={{ padding: "2px 6px", fontSize: 10 }}>
+                        UNAVAILABLE
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : saucerswap.loading ? (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: "center", color: "var(--text-tertiary)", padding: 12 }}>
+                    Loading SaucerSwap Testnet pools…
+                  </td>
+                </tr>
+              ) : (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: "center", color: "var(--text-tertiary)", padding: 12 }}>
+                    {saucerswap.data?.error || "SaucerSwap Testnet pools unavailable"}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
           <div className="note" style={{ marginTop: 10 }}>
-            Values withheld: official SaucerSwap testnet token/routing feeds are not yet live.
+            Read-only DEX snapshot from SaucerSwap Testnet API. APY is withheld: public wire facts carry no historical volume/fee earnings.
           </div>
         </div>
 
-        <div className="section-title">Bonzo Lending Matrix</div>
+        <div className="section-title">
+          Bonzo Lending Matrix
+          <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontWeight: 400, marginLeft: 8 }}>
+            {bonzo.data?.status === "available"
+              ? `real · live /market read · ${bonzo.data.reservesCount ?? "…"} reserves`
+              : "pending · not live"}
+          </span>
+        </div>
         <div className="card">
+          <div className="note" style={{ padding: "8px 0" }}>
+            {bonzo.data?.message ||
+              "No eligible live Bonzo Testnet API is wired. Static parameter snapshots are not claimed as live market data. APY UNAVAILABLE."}
+          </div>
           <table className="data-table">
             <thead>
               <tr>
                 <th>Asset</th>
-                <th>Supply</th>
-                <th>Borrow</th>
-                <th></th>
+                <th>Token ID</th>
+                <th>LTV</th>
+                <th>Liq. Threshold</th>
+                <th>APY Status</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>
-                  <div className="pair-cell">
-                    <span className="coin-dot" style={{ background: "linear-gradient(135deg,#4FACFE,#00F2FE)" }}></span>
-                    HBAR
-                  </div>
-                </td>
-                <td>—</td>
-                <td>—</td>
-                <td><button className="mini-btn emerald-o" disabled>Gated</button></td>
-              </tr>
-              <tr>
-                <td>
-                  <div className="pair-cell">
-                    <span className="coin-dot" style={{ background: "linear-gradient(135deg,#2775CA,#5AC1FF)" }}></span>
-                    USDC
-                  </div>
-                </td>
-                <td>—</td>
-                <td>—</td>
-                <td><button className="mini-btn emerald-o" disabled>Gated</button></td>
-              </tr>
+              {bonzo.data?.reserves?.length ? (
+                bonzo.data.reserves.map((r) => (
+                  <tr key={`${r.tokenId}-${r.symbol}`}>
+                    <td>
+                      <div className="pair-cell">
+                        <span className="coin-dot" style={{ background: "linear-gradient(135deg,#B388FF,#7C4DFF)" }}></span>
+                        {r.symbol}
+                      </div>
+                    </td>
+                    <td style={{ fontFamily: "monospace", fontSize: 11 }}>{r.tokenId}</td>
+                    <td>{r.ltvPercent != null ? `${Math.round(r.ltvPercent * 100)}%` : "—"}</td>
+                    <td>{r.liquidationThresholdPercent != null ? `${Math.round(r.liquidationThresholdPercent * 100)}%` : "—"}</td>
+                    <td>
+                      {r.supplyApy != null ? (
+                        <span style={{ color: "var(--emerald)" }}>
+                          {r.supplyApy}%
+                        </span>
+                      ) : (
+                        <span className="risk-tag warn" style={{ padding: "2px 6px", fontSize: 10 }}>
+                          UNAVAILABLE
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : bonzo.loading ? (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center", color: "var(--text-tertiary)", padding: 12 }}>
+                    Probing Bonzo Lend /market…
+                  </td>
+                </tr>
+              ) : (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center", color: "var(--text-tertiary)", padding: 12 }}>
+                    Bonzo adapter pending — reserves not claimed
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
-          <div className="note" style={{ marginTop: 10 }}>
-            Rates withheld: Bonzo testnet cannot be exercised yet — no invented APY.
-          </div>
         </div>
       </div>
     </AppFrame>

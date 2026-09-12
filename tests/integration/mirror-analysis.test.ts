@@ -44,9 +44,15 @@ run("real Testnet Mirror read exposes honest account-level facts with explicit m
   expect(["fresh", "stale", "unknown"]).toContain(analysis.analysis.freshnessHealth);
   expect(analysis.analysis.unavailable).toEqual([...UNVAILABLE_FEATURES]);
   expect(analysis.analysis.unavailable).toContain("live pool APY");
-  expect(analysis.analysis.unavailable).toContain("SaucerSwap data");
   expect(analysis.analysis.unavailable).toContain("Bonzo data");
+  expect(analysis.analysis.unavailable).not.toContain("SaucerSwap data");
   expect(analysis.analysis.limitations).toEqual([...ANALYSIS_LIMITATIONS]);
+  expect(analysis.analysis.limitations).toContain(
+    "SaucerSwap read-only metrics available (APY unavailable)",
+  );
+  expect(analysis.analysis.limitations).toContain(
+    "Bonzo lending matrix pending: no live Bonzo Lend source proven",
+  );
   expect(analysis.payment).toEqual({
     protocol: "x402",
     version: 2,

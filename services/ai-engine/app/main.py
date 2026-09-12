@@ -12,13 +12,17 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes import router
 from app.core.config import load_settings
+from app.services.bonzo_mirror import BonzoClient
 from app.services.hedera_mirror import MirrorClient
 from app.services.risk_engine import RiskEngine
+from app.services.saucerswap_mirror import SaucerSwapClient
 
 
 def create_app() -> FastAPI:
     settings = load_settings()
     mirror = MirrorClient(settings.mirror_base_url)
+    saucerswap = SaucerSwapClient(settings.saucerswap_base_url)
+    bonzo = BonzoClient(settings.bonzo_base_url)
     engine = RiskEngine(settings=settings, mirror=mirror)
 
     app = FastAPI(title="Strata402 ai-engine", version="0.1.0")
@@ -41,6 +45,8 @@ def create_app() -> FastAPI:
 
     app.state.settings = settings
     app.state.mirror = mirror
+    app.state.saucerswap = saucerswap
+    app.state.bonzo = bonzo
     app.state.engine = engine
     app.include_router(router)
     return app

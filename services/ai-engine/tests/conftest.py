@@ -65,13 +65,64 @@ class _resp:
         return self._json
 
 
+class BonzoFixtureFetch:
+    """In-process Bonzo probe double: non-200 by default (the real source is 503).
+
+    Keeps API tests hermetic while exercising the honest pending path.
+    """
+
+    def __init__(self, *, available: bool = False) -> None:
+        self.available = available
+        self.calls = 0
+
+    async def get(self, url: str) -> Any:
+        self.calls += 1
+        if self.available:
+            return _resp(
+                200,
+                {
+                    "timestamp": "2000000000.000000000",
+                    "reserves": [
+                        {
+                            "symbol": "HBAR",
+                            "name": "HBAR",
+                            "hts_address": "0.0.0",
+                            "ltv": 0.75,
+                            "liquidation_threshold": 0.8,
+                            "reserve_factor": 0.15,
+                            "variable_borrowing_enabled": True,
+                            "active": True,
+                            "frozen": False,
+                            "supply_apy": 0.04,
+                            "variable_borrow_apy": 0.06,
+                            "utilization_rate": 0.3,
+                        },
+                        {
+                            "symbol": "SAUCE",
+                            "name": "Sauce",
+                            "hts_address": "0.0.1183558",
+                            "ltv": 0.6,
+                            "liquidation_threshold": 0.7,
+                            "reserve_factor": 0.2,
+                            "variable_borrowing_enabled": True,
+                            "active": True,
+                            "frozen": False,
+                        },
+                    ],
+                },
+            )
+        # The real documented source currently returns 503 (Heroku app error).
+        return _resp(503, {"error": "bonzo down"})
+
+
 @pytest.fixture
 async def client():
-    """FastAPI ASGI client with a labeled in-process mirror fake."""
+    """FastAPI ASGI client with labeled in-process data fakes."""
     app = create_app()
     fetch = FixtureFetch()
     app.state.mirror._fetch = fetch
+    app.state.bonzo._fetch = BonzoFixtureFetch()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        ac.state = {"fetch": fetch}
+        ac.state = {"fetch": fetch, "bonzo": app.state.bonzo}
         yield ac

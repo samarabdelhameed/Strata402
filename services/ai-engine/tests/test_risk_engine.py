@@ -90,8 +90,24 @@ def test_narrative_uses_only_supplied_facts() -> None:
     assert "0.01 HBAR" in joined
     assert "net 0.01 HBAR" in joined
     assert "No LLM involved" in narrative.summary
+    assert "Bonzo" not in joined
+    assert "lending reserves active" not in joined.lower()
 
 
 def test_narrative_always_deterministic_type() -> None:
     n = Narrative(generatedBy="deterministic", llm=False, summary="s", points=["p"])
     assert n.generatedBy == "deterministic"
+
+
+def test_narrative_with_saucerswap() -> None:
+    from app.services.saucerswap_mirror import SaucerPoolsRead
+    observed = Observed(
+        account={"accountId": ACCOUNT, "exists": True, "deleted": False, "createdTimestamp": "1500000000.000000000"},
+        balance={"tinybars": "1000000", "hbar": "0.01", "timestamp": "2000000000.000000000", "tokenBalancesCount": 0},
+        recent30d={"transactionCount": 1, "hbarInTinybars": "1000000", "hbarOutTinybars": "0", "latestTimestamp": "2000000000.000000000"},
+    )
+    pools_read = SaucerPoolsRead(pool_count=20, fee_tiers_seen_hundredths_bps=(500, 3000), pools=())
+    narrative = build_narrative(observed, "1000000", "fresh", saucerswap_pools=pools_read)
+    joined = "\n".join(narrative.points)
+    assert "SaucerSwap DEX Read-Only Snapshot: 20 pools" in joined
+    assert "live pool APY unavailable" in joined

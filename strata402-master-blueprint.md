@@ -19,8 +19,6 @@
 > runs: `0.0.9185802-1789162601-197120935` (Web paid flow) and
 > `0.0.9185802-1789101908-717608026` (CLI agent).
 
-### Completed (verified in this repository)
-
 | Area | What is live | Evidence |
 | :--- | :--- | :--- |
 | API Gateway | Express service, x402 v2 guard, `/health`, `/v1/services`, paid `/v1/strategy/yield-risk` | 402 + `PAYMENT-REQUIRED` challenge live |
@@ -29,30 +27,31 @@
 | Consuming agent | Discovery → 402 → sign → retry → verify → settle on testnet | Real tx `0.0.9185802-…` settled |
 | Mirror analysis | Real Mirror Node account reads (balance, recent 30-day flow), explicit `source` / `freshness` / `limitations`, `dataUnavailable` degradation | `RUN_MIRROR_INTEGRATION=true` green |
 | Yield-risk request contract | Shared `{ accountId, riskTolerance, amountHbar }`; 400 before any mirror read; agent fail-closed pre-send | Unit + integration tests |
+| SaucerSwap adapter | Live read-only DEX snapshot (`/tokens` & `/v2/pools/full`), APY explicitly `UNAVAILABLE` | Verified live from `https://test-api.saucerswap.finance` |
+| HSCS Smart Contracts | `AgentRegistryHCS14`, `AutoSwapLimit`, `HederaYieldVault` deployed & bytecode-verified | Deployed on Hedera Testnet (`0.0.10506191`…) |
+| Dual Contract Toolchains | Hardhat (`npx hardhat compile`) + Foundry (`forge build`) | Compiled in 505ms |
 | Fail-closed payment checks | Wrong network/asset/amount/scheme + payTo mismatch abort with zero signed requests | `tests/integration/c1-paid.test.ts` |
-| Deterministic AI engine | Real FastAPI service (`services/ai-engine`) mirroring the gateway contract; honest `unavailable`; never fabricates riskScore/confidence | Live on `:8000`; 12 pytest green |
-| HCS audit logging | Every handled paid request logged to topic `0.0.10483725` (seq 1…7, growing); fail-open, metadata only | Live mirror fetch |
-| Web UI (`apps/web`) | Next.js 14 dashboard over real data (gateway + Mirror + HCS) + server-side real x402 paid flow | Verified on `:3000` and prod standalone build |
+| Deterministic AI engine | Real FastAPI service (`services/ai-engine`) mirroring the gateway contract; honest `unavailable`; never fabricates riskScore/confidence | Live on `:8000`; 18 pytest green |
+| HCS audit logging | Every handled paid request logged to topic `0.0.10483725` (seq 1…24, growing); fail-open, metadata only | Live mirror fetch |
+| Web UI (`apps/web`) | Next.js 14 dashboard over real data (gateway + Mirror + HCS + SaucerSwap) + server-side real x402 paid flow | Verified on `:3000` and prod standalone build |
 | Security / submission evidence | No secrets in code; `.env.example` placeholders only; public txIds documented | `git diff --check` clean |
 
-### Deferred (explicitly out of MVP + 7A + 8 series scope)
+### Deferred (explicitly out of MVP + submission scope)
 
 | Item | Status |
 | :--- | :--- |
-| SaucerSwap adapter | Pending official API credentials + live source verification |
-| Bonzo Finance adapter | Deferred — no eligible live Testnet source verified on 2026-09-11 |
-| Smart contracts (HSCS) | Deferred — never blocks qualification |
+| Bonzo Finance adapter | Deferred — no eligible live Testnet source verified |
 | HCS-14 discovery | Deferred (post-MVP) |
 | Mainnet | Out of scope |
 | Dynamic pricing / HTS payments | Stretch only |
 
-> **Phase 8A-0 source-eligibility note (verified 2026-09-11, read-only):**
-> - Bonzo Testnet data source unavailable at verification time (documented base URL returns
->   `503`; the current official temporary base is Mainnet-only).
-> - Mainnet staging data is excluded from the Hedera Testnet analysis path.
-> - SaucerSwap pending official `x-api-key` credential and live source verification.
-> - Current analysis remains: **Mirror Node account-level risk only**. Adapters stay in
->   `unavailable` until an eligible live source is proven.
+> **Phase 8A-0 source-eligibility note (updated 2026-09-12):**
+> - Bonzo Testnet data source unavailable (documented base returns `503`; Mainnet staging
+>   excluded from the Hedera Testnet analysis path).
+> - SaucerSwap Testnet API is **keyless** at `https://test-api.saucerswap.finance`
+>   (`/tokens`, `/v2/pools/full`). Read-only adapter is live; **APY remains UNAVAILABLE**.
+> - Analysis remains Mirror Node account-level risk, optionally enriched with SaucerSwap
+>   read-only pool/token facts. Bonzo / HCS-14 stay pending.
 
 ---
 
@@ -62,7 +61,7 @@
 
 An independent buyer agent (`apps/consuming-agent`) demonstrates the full machine-to-machine economy: it discovers the service, triggers an `HTTP 402 Payment Required`, signs an HBAR x402 payment, submits the partially signed transaction via Blocky402, retries with the canonical `PAYMENT-SIGNATURE` header, and receives a paid AI analysis.
 
-The MVP is deliberately scoped to satisfy the track's qualification requirements with one focused architecture: **one x402-gated AI endpoint + one consuming agent + one real testnet paid request end-to-end**. Yield/risk analysis is real but relies on clearly labeled adapters (Mirror Node) and generated explanations — no unverified claims of live SaucerSwap/Bonzo data.
+The MVP is deliberately scoped to satisfy the track's qualification requirements with one focused architecture: **one x402-gated AI endpoint + one consuming agent + one real testnet paid request end-to-end**. Yield/risk analysis is real but relies on clearly labeled adapters (Mirror Node + optional SaucerSwap read-only) — no unverified Bonzo claims, and no fabricated APY.
 
 ---
 
@@ -156,8 +155,9 @@ Why Hedera + x402 wins the track: sub-second finality makes true per-call microp
 1. **Real end-to-end money movement** — not a mock. The demo shows an actual testnet HBAR transfer settled by Blocky402 and a paid AI response.
 2. **Official protocol stack** — `@x402/*` packages, canonical v2 transport (`PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE` / `PAYMENT-RESPONSE`), Blocky402, HBAR exact scheme. Judge points to protocol compliance, not workarounds.
 3. **Deterministic + honest-unavailable split** — analysis is reproducible math over real
-   mirror facts; anything not genuinely verified (pool APY, SaucerSwap, Bonzo) is listed in
-   `unavailable`, never invented. This is more credible and defensible than raw LLM output.
+   mirror facts; anything not genuinely verified (pool APY, Bonzo) is listed in
+   `unavailable`, never invented. SaucerSwap read-only facts are allowed; APY is not.
+   This is more credible and defensible than raw LLM output.
 4. **Focused monorepo** — one clear architecture, no repo sprawl. `contracts/`, `services/`, `apps/`, `packages/` are all present but incrementally built.
 5. **Sub-second finality story** — the demo ties Hedera's speed to the micropayment UX in 30 seconds of screen time.
 
@@ -272,7 +272,7 @@ The MVP is done when all of the following pass on **Hedera testnet**:
                      │  app/  api/  core/  models/  services/       │
                      │  ├─ hedera_mirror.py  (verified data layer)   │
                      │  └─ risk_engine.py    (deterministic math)    │
-                     │  SaucerSwap/Bonzo adapters: PENDING (gated)   │
+                     │  SaucerSwap: read-only live; Bonzo: PENDING   │
                      └───────────────┬──────────────────────────────┘
                                      │
         ┌────────────────────────────┼────────────────────────────┐
@@ -294,7 +294,7 @@ The MVP is done when all of the following pass on **Hedera testnet**:
 | `apps/consuming-agent/` | Independent autonomous payer; runs its own loop, no frontend dependency. |
 | `apps/web/` | Real-data dashboard (Live): server-side reads, paid flow, HCS auditor. |
 | `services/api-gateway/` | The x402 "resource server": challenge generation, proof verification, nonce/expiry/replay checks, routing, audit hooks. |
-| `services/ai-engine/` | Deterministic engine mirroring the gateway contract; honest `unavailable`. SaucerSwap/Bonzo adapters remain `PENDING` (gated). |
+| `services/ai-engine/` | Deterministic engine mirroring the gateway contract; honest `unavailable`. SaucerSwap read-only live; Bonzo pending. |
 | `contracts/` | Solidify Hedera HSCS contracts; deployment is post-MVP and never blocks qualification. |
 | `packages/x402-sdk/` | Shared TS utilities: header parsing/serialization, types, HCS audit helper. |
 | `scripts/` | Operator tooling: create HCS topic, register service, verify a testnet payment. |
@@ -522,8 +522,8 @@ The `PaymentRequired` object carries (defaults depend on the installed SDK `[VER
     "observed": { "account": { "accountId": "…" }, "balance": { "tinybars": "…", "hbar": "…" },
                   "recent30d": { "transactionCount": 0, "hbarInTinybars": "0", "hbarOutTinybars": "0" } },
     "derivedMetrics": { "net30dTinybars": "0" },
-    "unavailable": ["live pool APY", "protocol liquidity", "smart-contract risk", "SaucerSwap data", "Bonzo data"],
-    "limitations": ["No protocol-specific APY data", "No SaucerSwap adapter", "No Bonzo adapter",
+    "unavailable": ["live pool APY", "protocol liquidity", "smart-contract risk", "Bonzo data"],
+    "limitations": ["No live protocol APY data claimed", "SaucerSwap read-only metrics available (APY unavailable)", "No Bonzo adapter",
                     "No automatic fund movement"]
   },
   "payment": { "protocol": "x402", "version": 2, "network": "hedera:testnet", "asset": "0.0.0",
@@ -803,10 +803,12 @@ STRATA402_MAX_TOTAL_BUDGET_TINYBARS=1000000
 STRATA402_RISK_TOLERANCE=balanced
 STRATA402_ANALYSIS_AMOUNT_HBAR=1
 
-# ===== SaucerSwap (PENDING) =====
-# Official API key must stay empty until granted; no fake keys, no unofficial sources.
-SAUCERSWAP_API_KEY=
+# ===== SaucerSwap (keyless Testnet API) =====
+# Official test-api.saucerswap.finance: no API key required for /tokens and /v2/pools/full.
+# Leave SAUCERSWAP_API_KEY empty. APY is always UNAVAILABLE.
+# SAUCERSWAP_API_KEY=
 SAUCERSWAP_API_URL=https://test-api.saucerswap.finance
+SAUCERSWAP_ENABLED=true
 
 # ===== HCS audit log topic (live) =====
 HCS_AUDIT_TOPIC_ID=
@@ -897,35 +899,34 @@ Strictly sequential; each phase ends with tests + acceptance criteria, and the n
   placeholders hardened; leak removed; full diff + security scan performed; public txId documented.
 - **STOP for review — no commit/push yet.**
 
-### Phase 8A — Source Eligibility & Enrichment (DONE — decision recorded)
+### Phase 8A — Source Eligibility & Enrichment (DONE — decision updated 2026-09-12)
 - Verify eligible third-party data sources (Bonzo, SaucerSwap) read-only before any adapter.
-- Outcome (2026-09-11): **Bonzo deferred** (no eligible live Testnet source; Mainnet staging
-  excluded), **SaucerSwap pending** official `x-api-key` + live verification. No adapter written.
-  Honest controlled-unavailable retained. Extend `unavailable` as facts change.
+- Outcome: **Bonzo deferred** (no eligible live Testnet source; Mainnet staging excluded).
+  **SaucerSwap read-only DONE** via keyless `https://test-api.saucerswap.finance`
+  (`/tokens`, `/v2/pools/full`); APY always UNAVAILABLE. Extend `unavailable` as facts change.
 
 ### Phase 8B — Real-data Web UI over the proven flow (DONE)
 - Next.js 14 dashboard (`apps/web`) over the live MVP: service catalog, account facts,
   paid x402 analysis (server-signed, mirror-verified), HCS audit explorer.
 - State verified live on `:3000` (dev) and the standalone production build; a web-initiated
   paid request settled on testnet (`0.0.9185802-1789164101-943032414`) and published HCS seq 7.
-- Honest gates: SaucerSwap / Bonzo / HCS-14 shown `PENDING` — no fabricated fills.
+- Honest gates: Bonzo / HCS-14 shown `PENDING`; SaucerSwap read-only available (APY withheld).
 
-### Phase 8C — SaucerSwap Source Verification (+ adapter after a passing live probe)
-Only when an official `x-api-key` is available: probe `test-api.saucerswap.finance`
-`GET /v2/pools/full` read-only; verify network, pool identity, token metadata, liquidity,
-amounts, fee tier, price fields, `timestamp`/freshness. Adapter only after the live probe
-passes and schema is stable. Read-only (no swap/liquidity operations) in Phase 8A scope.
+### Phase 8C — SaucerSwap Source Verification (+ adapter) — DONE
+Live probe of keyless `https://test-api.saucerswap.finance` `GET /tokens` and
+`GET /v2/pools/full` succeeded without an API key. Adapter implemented read-only in
+gateway, ai-engine, and web (`/api/saucerswap`). APY always `UNAVAILABLE` (no fee-history
+on the wire). Swap/LP **execution** remains out of scope.
 
-SaucerSwap status (Phase 7, 2026-09-11):
+SaucerSwap status (updated 2026-09-12):
 - Official testnet URL: `https://test-api.saucerswap.finance`
-- Endpoint: `GET /v2/pools/full`
-- Authentication: `x-api-key` header required
-- API key: not available
-- Live probe: not executed
-- Adapter: not implemented
-- Status: **PENDING**
-- Local env `SAUCERSWAP_API_KEY=` kept empty by design (no fake key, no unofficial
-  source, no request to a protected endpoint without a key).
+- Endpoints: `GET /tokens`, `GET /v2/pools/full`
+- Authentication: **none** (keyless public Testnet API)
+- Live probe: executed (tokens + pools return 200)
+- Adapter: implemented (read-only)
+- APY: **UNAVAILABLE**
+- Execution (swap/LP): **PENDING**
+- Local env: leave `SAUCERSWAP_API_KEY` empty; set `SAUCERSWAP_API_URL` to the test-api base.
 
 ### Phase 8D — Bonzo Re-check
 - Re-probe Bonzo only when: an eligible official live source exists, Testnet data is present
@@ -963,8 +964,8 @@ SaucerSwap status (Phase 7, 2026-09-11):
 - Status: **DONE**.
 
 ### Phase 8G — (registry slots for future work)
-- SaucerSwap adapter and Bonzo remain **PENDING** (blocked by official key / qualified Testnet
-  source, per Phase 8C Pre-gate).
+- SaucerSwap **execution** and Bonzo remain **PENDING** (Bonzo: no qualified Testnet source;
+  SaucerSwap: read-only shipped, swap/LP not wired).
 
 ---
 

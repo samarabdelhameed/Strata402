@@ -76,7 +76,7 @@ export default function LandingPage() {
             audited on HCS.
           </p>
           <div className="hero-cta">
-            <Link href="/studio" className="btn btn-primary">
+            <Link href="/studio" className="btn btn-primary" suppressHydrationWarning>
               <svg
                 width="14"
                 height="14"
@@ -89,7 +89,7 @@ export default function LandingPage() {
               </svg>
               Launch AI Studio
             </Link>
-            <Link href="/audit" className="btn btn-ghost">
+            <Link href="/audit" className="btn btn-ghost" suppressHydrationWarning>
               View HCS Feed
             </Link>
           </div>
@@ -101,7 +101,7 @@ export default function LandingPage() {
             <div className="value cyan" style={{ fontSize: 14 }}>
               {status.loading ? "…" : serviceName}
             </div>
-            <div className="sub">x402 v{health?.x402Version ?? "·"} · {health?.network ?? "hestera"}</div>
+            <div className="sub">x402 v{health?.x402Version ?? "·"} · {health?.network ?? "hedera"}</div>
           </div>
           <div className="stat-tile">
             <div className="label">PRICE / CALL</div>
@@ -128,10 +128,10 @@ export default function LandingPage() {
 
         <div className="section-title">
           Agent Marketplace{" "}
-          <Link href="/audit">HCS-14 registry →</Link>
+          <Link href="/audit" suppressHydrationWarning>HCS-14 registry →</Link>
         </div>
 
-        <div className="stagger">
+        <div className="stagger agent-list">
           <div className="card agent-card">
             <div className="agent-icon" style={{ background: "rgba(0,242,254,.12)", color: "var(--cyan)" }}>
               ◆
@@ -153,7 +153,7 @@ export default function LandingPage() {
             </div>
             <div className="agent-info">
               <div className="name">SaucerSwap LP Optimizer</div>
-              <div className="price">GATED · awaiting official SaucerSwap testnet key</div>
+              <div className="price">PENDING · swap execution not wired (read-only pools live)</div>
             </div>
             <button className="mini-btn emerald-o" disabled onClick={onGated}>
               Try demo
@@ -166,11 +166,74 @@ export default function LandingPage() {
             </div>
             <div className="agent-info">
               <div className="name">Bonzo Risk Guard</div>
-              <div className="price">GATED · awaiting official Bonzo protocol keys</div>
+              <div className="price">PENDING · no eligible live Testnet source</div>
             </div>
             <button className="mini-btn warn-o" disabled onClick={onGated}>
               Try demo
             </button>
+          </div>
+        </div>
+
+        <div className="section-title">
+          Deployed HSCS Contracts{" "}
+          <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontWeight: 400 }}>
+            addresses only · no live vault balances claimed
+          </span>
+        </div>
+        <div className="contracts-grid stagger">
+          <div className="card contract-card">
+            <div className="name">AgentRegistryHCS14</div>
+            <div className="addr">0xD9A2…A6aC · 0.0.10506191</div>
+            <div className="note" style={{ marginTop: 6 }}>
+              Deployed on Hedera Testnet.{" "}
+              <a
+                className="hashscan-link"
+                href="https://hashscan.io/testnet/contract/0xD9A2C06f68E904F4a0d7c40C7e4fb0239F42A6aC"
+                target="_blank"
+                rel="noreferrer"
+              >
+                HashScan
+              </a>
+            </div>
+            <span className="chip chip-pending" style={{ marginTop: 8 }}>
+              HCS-14 wiring PENDING
+            </span>
+          </div>
+          <div className="card contract-card">
+            <div className="name">AutoSwapLimit Engine</div>
+            <div className="addr">0xbB1c…2978 · 0.0.10506192</div>
+            <div className="note" style={{ marginTop: 6 }}>
+              Deployed on Hedera Testnet.{" "}
+              <a
+                className="hashscan-link"
+                href="https://hashscan.io/testnet/contract/0xbB1c5210B395253B66eA8B8326083c7fD63E2978"
+                target="_blank"
+                rel="noreferrer"
+              >
+                HashScan
+              </a>
+            </div>
+            <span className="chip chip-pending" style={{ marginTop: 8 }}>
+              Swap execution PENDING
+            </span>
+          </div>
+          <div className="card contract-card">
+            <div className="name">HederaYieldVault</div>
+            <div className="addr">0xF2BC…Af85 · 0.0.10506193</div>
+            <div className="note" style={{ marginTop: 6 }}>
+              Deployed on Hedera Testnet.{" "}
+              <a
+                className="hashscan-link"
+                href="https://hashscan.io/testnet/contract/0xF2BC42767Ed6c324d6309c4200af4587880aAf85"
+                target="_blank"
+                rel="noreferrer"
+              >
+                HashScan
+              </a>
+            </div>
+            <span className="chip chip-pending" style={{ marginTop: 8 }}>
+              Vault ops PENDING
+            </span>
           </div>
         </div>
 
@@ -180,9 +243,9 @@ export default function LandingPage() {
               Honest gate — no fabricated prices.
             </div>
             <div className="note" style={{ marginTop: 4 }}>
-              AutoSwap and Bonzo integrators will not be shown as operating until their official
-              testnet protocol keys exist and can be exercised for real. Displayed prices would
-              be invented numbers, so they are withheld.
+              SaucerSwap Testnet read-only pools are live (APY unavailable). Swap/LP execution and
+              Bonzo lending remain pending until an eligible live source or execution path is wired.
+              Invented prices are withheld.
             </div>
           </div>
         ) : null}

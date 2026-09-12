@@ -14,8 +14,9 @@ export function mountSaucerSwapRoute(app: Express): void {
       const pools = await readSaucerPools(SAUCER_BASE_URL);
       res.json({
         status: "ok",
-        source: "SaucerSwap Liquid",
+        source: "saucerswap-test-api",
         fetchedAt: new Date().toISOString(),
+        baseUrl: SAUCER_BASE_URL,
         tokens: {
           tokenCount: tokens.tokenCount,
           sampleSymbols: tokens.sampleSymbols,

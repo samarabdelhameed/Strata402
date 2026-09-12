@@ -273,7 +273,14 @@ export async function readAccountFromMirror(accountId: string): Promise<MirrorAc
       typeof account.created_timestamp === "string" ? account.created_timestamp : null;
     if (account.balance && typeof account.balance === "object") {
       const balance = account.balance as Record<string, unknown>;
-      const tinybars = typeof balance.balance === "string" ? balance.balance : "0";
+      // Mirror returns balance as a number; accept string for robustness.
+      const raw = balance.balance;
+      const tinybars =
+        typeof raw === "number" && Number.isFinite(raw)
+          ? String(Math.trunc(raw))
+          : typeof raw === "string" && raw.trim()
+            ? raw.trim()
+            : "0";
       base.balanceTinybars = tinybars;
       base.balanceHbar = (Number(tinybars) / 1e8).toFixed(8);
       base.balanceTimestamp =

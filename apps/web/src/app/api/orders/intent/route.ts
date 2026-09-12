@@ -1,20 +1,23 @@
 import { NextResponse } from "next/server";
-import {
-  buildIntentMessage,
-  isIntentPublishAvailable,
-  publishLimitOrderIntent,
-} from "@/lib/hcs";
 
 export const dynamic = "force-dynamic";
 
 const DEFAULT_ACCOUNT = "0.0.10329902";
 
+/** Light availability probe — avoids loading @hiero-ledger/sdk (pino) on GET. */
 export async function GET() {
-  const avail = isIntentPublishAvailable(process.env);
-  return NextResponse.json({
-    enabled: avail.enabled,
-    reason: avail.enabled ? null : (avail.reason ?? "closed"),
-  });
+  const env = process.env;
+  const topic = env.HCS_AUDIT_TOPIC_ID?.trim() ?? "";
+  const account = env.STRATA402_PAYER_ACCOUNT_ID?.trim() ?? "";
+  const key = env.STRATA402_PAYER_PRIVATE_KEY?.trim() ?? "";
+  const enabled = Boolean(topic && account && key);
+  let reason: string | null = null;
+  if (!enabled) {
+    if (!topic) reason = "HCS_AUDIT_TOPIC_ID is not configured on the server";
+    else if (!account) reason = "payer account is not configured on the server";
+    else reason = "payer private key is not configured on the server";
+  }
+  return NextResponse.json({ enabled, reason });
 }
 
 export async function POST(request: Request) {
@@ -75,6 +78,7 @@ export async function POST(request: Request) {
     );
   }
 
+  const { buildIntentMessage, publishLimitOrderIntent } = await import("@/lib/hcs");
   const message = buildIntentMessage({
     side,
     pair,

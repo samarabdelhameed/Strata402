@@ -1,0 +1,22 @@
+{
+  "name": "@strata402/contracts",
+  "version": "1.0.0",
+  "description": "Hedera Smart Contract Service (HSCS) production contracts for Strata402 x402 AI Agent",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:testnet": "hardhat run scripts/deploy.ts --network hederaTestnet",
+    "verify:testnet": "hardhat verify --network hederaTestnet"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.2"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@hashgraph/sdk": "^2.40.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.22.3",
+    "typescript": "^5.4.5"
+  }
+}

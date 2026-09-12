@@ -296,11 +296,23 @@ async function readValidatedChallenge(
  * transfer of exactly `amountTinybars` to the certified `payTo` from the payer.
  * A 200 response alone is never treated as proof.
  */
+function consensusSeconds(ts: string | null): number | null {
+  if (ts === null || ts === "") return null;
+  const seconds = Number(ts.split(".")[0] ?? "");
+  return Number.isFinite(seconds) ? seconds : null;
+}
+
+/**
+ * Prefer the newest SUCCESS match. When `notBeforeSeconds` is set, ignore older
+ * transfers so a prior identical 0.01 HBAR settlement cannot satisfy a new run
+ * while the fresh mirror row is still indexing.
+ */
 export function findMatchingTransaction(
   raw: unknown,
   payerAccountId: string,
   payTo: string,
   amountTinybars: string,
+  notBeforeSeconds?: number,
 ): { transactionId: string; result: string; consensusTimestamp: string | null } | null {
   if (typeof raw !== "object" || raw === null) return null;
   const transactions = (raw as Record<string, unknown>).transactions;
@@ -312,6 +324,9 @@ export function findMatchingTransaction(
   } catch {
     return null;
   }
+
+  let best: { transactionId: string; result: string; consensusTimestamp: string | null; rank: number } | null =
+    null;
 
   for (const entry of transactions) {
     if (typeof entry !== "object" || entry === null) continue;
@@ -336,7 +351,8 @@ export function findMatchingTransaction(
         continue;
       }
       if (account === payTo && transferAmount === target) paidToRecipient = true;
-      if (account === payerAccountId && transferAmount < 0n) paidByPayer = true;
+      // Exact debit of the priced amount (fee legs may appear alongside).
+      if (account === payerAccountId && transferAmount === -target) paidByPayer = true;
     }
 
     if (!paidToRecipient || !paidByPayer) continue;
@@ -344,15 +360,28 @@ export function findMatchingTransaction(
     const transactionId = typeof record.transaction_id === "string" ? record.transaction_id : "";
     if (transactionId === "") continue;
 
-    return {
+    const consensusTimestamp =
+      typeof record.consensus_timestamp === "string" ? record.consensus_timestamp : null;
+    const rank = consensusSeconds(consensusTimestamp);
+    if (notBeforeSeconds !== undefined) {
+      if (rank === null || rank < notBeforeSeconds) continue;
+    }
+
+    const candidate = {
       transactionId,
       result,
-      consensusTimestamp:
-        typeof record.consensus_timestamp === "string" ? record.consensus_timestamp : null,
+      consensusTimestamp,
+      rank: rank ?? Number.NEGATIVE_INFINITY,
     };
+    if (best === null || candidate.rank > best.rank) best = candidate;
   }
 
-  return null;
+  if (best === null) return null;
+  return {
+    transactionId: best.transactionId,
+    result: best.result,
+    consensusTimestamp: best.consensusTimestamp,
+  };
 }
 
 /**
@@ -369,6 +398,8 @@ export async function verifySettlementEvidence(options: {
   fetchFn?: C1Fetch;
   attempts?: number;
   delayMs?: number;
+  /** Reject SUCCESS transfers with consensus time before this unix second (stale-match guard). */
+  notBeforeSeconds?: number;
 }): Promise<C1SettlementEvidence | null> {
   const attempts = options.attempts ?? DEFAULT_SETTLEMENT_ATTEMPTS;
   const delayMs = options.delayMs ?? DEFAULT_SETTLEMENT_DELAY_MS;
@@ -390,7 +421,13 @@ export async function verifySettlementEvidence(options: {
       continue;
     }
 
-    const match = findMatchingTransaction(raw, options.payerAccountId, options.payTo, options.amountTinybars);
+    const match = findMatchingTransaction(
+      raw,
+      options.payerAccountId,
+      options.payTo,
+      options.amountTinybars,
+      options.notBeforeSeconds,
+    );
     if (match !== null) {
       return {
         verified: true,
@@ -555,6 +592,10 @@ export async function runC1(options: C1Options = {}): Promise<C1Report> {
   });
   await request.createPayload();
 
+  // Floor for mirror proof: ignore older identical 0.01 HBAR transfers while the
+  // fresh settlement row is still indexing (5s skew for local clock vs consensus).
+  const notBeforeSeconds = Math.floor(Date.now() / 1000) - 5;
+
   let result;
   try {
     result = await request.executePaidRequest();
@@ -585,7 +626,16 @@ export async function runC1(options: C1Options = {}): Promise<C1Report> {
   }
 
   traffic.paymentSends += 1;
-  const evidence = result.evidence;
+  let evidence = result.evidence;
+  try {
+    const rawText = await result.response.text();
+    if (rawText) {
+      const parsedBody = JSON.parse(rawText);
+      evidence = { ...evidence, body: parsedBody } as typeof result.evidence;
+    }
+  } catch {
+    // ignore
+  }
 
   if (evidence.paymentStatus === "settled") {
     const settlement = await verifySettlementEvidence({
@@ -597,6 +647,7 @@ export async function runC1(options: C1Options = {}): Promise<C1Report> {
       fetchFn: options.fetchFn ?? fetch,
       attempts: options.settlementAttempts,
       delayMs: options.settlementDelayMs,
+      notBeforeSeconds,
     });
     traffic.settlementReads += 1;
 

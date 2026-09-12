@@ -72,11 +72,12 @@ const VALID_SUPPORTED = {
 };
 
 function mirrorTransactions(payer: string, payTo: string, amountTinybars: string): unknown {
+  const now = Math.floor(Date.now() / 1000);
   return {
     transactions: [
       {
         transaction_id: "0.0.10329902-1234567890-123456789",
-        consensus_timestamp: "1757000000.000000000",
+        consensus_timestamp: `${now}.000000000`,
         result: "SUCCESS",
         transfers: [
           { account: payer, amount: -Number(amountTinybars), is_approval: false },
@@ -494,6 +495,40 @@ test("findMatchingTransaction requires payer+payTo+amount+SUCCESS", () => {
 
   expect(findMatchingTransaction(null, PAYER, CERTIFIED_PAYTO, AMOUNT)).toBeNull();
   expect(findMatchingTransaction({}, PAYER, CERTIFIED_PAYTO, AMOUNT)).toBeNull();
+});
+
+test("findMatchingTransaction prefers newest SUCCESS and respects notBeforeSeconds", () => {
+  const raw = {
+    transactions: [
+      {
+        transaction_id: "0.0.9185802-100-1",
+        consensus_timestamp: "1789232649.178711760",
+        result: "SUCCESS",
+        transfers: [
+          { account: PAYER, amount: -Number(AMOUNT), is_approval: false },
+          { account: CERTIFIED_PAYTO, amount: Number(AMOUNT), is_approval: false },
+        ],
+      },
+      {
+        transaction_id: "0.0.9185802-200-2",
+        consensus_timestamp: "1789237158.890204035",
+        result: "SUCCESS",
+        transfers: [
+          { account: PAYER, amount: -Number(AMOUNT), is_approval: false },
+          { account: CERTIFIED_PAYTO, amount: Number(AMOUNT), is_approval: false },
+        ],
+      },
+    ],
+  };
+
+  const newest = findMatchingTransaction(raw, PAYER, CERTIFIED_PAYTO, AMOUNT);
+  expect(newest?.transactionId).toBe("0.0.9185802-200-2");
+
+  const filtered = findMatchingTransaction(raw, PAYER, CERTIFIED_PAYTO, AMOUNT, 1789237000);
+  expect(filtered?.transactionId).toBe("0.0.9185802-200-2");
+
+  const staleOnly = findMatchingTransaction(raw, PAYER, CERTIFIED_PAYTO, AMOUNT, 1789238000);
+  expect(staleOnly).toBeNull();
 });
 
 test("verifySettlementEvidence returns null without retrying when nothing matches (no send)", async () => {
