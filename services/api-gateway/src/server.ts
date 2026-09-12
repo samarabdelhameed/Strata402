@@ -1,5 +1,6 @@
 import express from "express";
 import { DEFAULT_NETWORK, buildServiceCatalog } from "@strata402/x402-sdk";
+import { mountSaucerSwapRoute } from "./routes/saucerswap";
 import { buildX402Gateway, createPaymentMiddleware } from "./x402";
 import { createYieldRiskHandler } from "./analyst";
 import { verifyPaymentProof } from "./payment-proof";
@@ -50,6 +51,8 @@ export function buildApp(): express.Express {
     const proof = await verifyPaymentProof({ mirrorBaseUrl });
     res.json(proof);
   });
+
+  mountSaucerSwapRoute(app);
 
   return app;
 }

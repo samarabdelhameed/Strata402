@@ -63,6 +63,24 @@ button:hover{background:rgba(34,211,238,.22)}
     <a id="proofLink" class="pill ok" style="text-decoration:none;visibility:hidden" href="#" target="_blank">HashScan</a>
   </div>
 
+  <h2 class="muted" style="margin-top:1.5rem;margin-bottom:.5rem">SaucerSwap Live Pools <span class="pill" id="saucerPill" style="visibility:hidden">...</span></h2>
+  <div class="grid">
+    <section class="glass card"><h2>Tokens</h2><div class="val" id="swTokCount">...</div><div class="muted" id="swTokSym"></div></section>
+    <section class="glass card"><h2>Pools</h2><div class="val" id="swPoolCount">...</div><div class="muted" id="swFeeTiers"></div></section>
+    <section class="glass card"><h2>APY</h2><div class="val" id="swApy">...</div><div class="muted">SaucerSwap does not publish APY</div></section>
+  </div>
+  <div class="glass card" style="overflow-x:auto;padding:0">
+    <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+      <thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border)">
+        <th style="padding:.6rem .9rem">Pool</th><th style="padding:.6rem .9rem">ID</th>
+        <th style="padding:.6rem .9rem">Token A</th><th style="padding:.6rem .9rem">Token B</th>
+        <th style="padding:.6rem .9rem">Liquidity</th><th style="padding:.6rem .9rem">Fee</th>
+        <th style="padding:.6rem .9rem">Fetched at</th><th style="padding:.6rem .9rem">APY</th>
+      </tr></thead>
+      <tbody id="swTableBody"><tr><td colspan="8" class="muted" style="padding:1rem">...</td></tr></tbody>
+    </table>
+  </div>
+
   <h2 class="muted" style="margin-top:1.5rem;margin-bottom:.5rem">Limitations</h2>
   <ul class="limitations glass">
     <li>Protocol APY: <b>UNAVAILABLE</b> (no live pool source)</li>
@@ -161,6 +179,62 @@ async function loadProof() {
 
 probe();
 loadProof();
+
+var swPill = document.getElementById("saucerPill");
+var swTokCnt = document.getElementById("swTokCount");
+var swTokSym = document.getElementById("swTokSym");
+var swPoolCnt = document.getElementById("swPoolCount");
+var swFeeTiers = document.getElementById("swFeeTiers");
+var swApy = document.getElementById("swApy");
+var swBody = document.getElementById("swTableBody");
+
+function swSet(cls, text) {
+  swPill.textContent = text;
+  swPill.className = "pill " + cls;
+  swPill.style.visibility = "visible";
+}
+
+async function loadSaucer() {
+  try {
+    var r = await fetch("/v1/defi/saucerswap");
+    if (!r.ok) { swSet("err", "HTTP " + r.status); return; }
+    var d = await r.json();
+    var tok = d.tokens || {}, pools = d.pools || {};
+    swTokCnt.textContent = String(tok.tokenCount ?? "?");
+    swTokSym.textContent = (tok.sampleSymbols || []).join(" · ");
+    swPoolCnt.textContent = String(pools.poolCount ?? "?");
+    swFeeTiers.textContent = "fee tiers " + (pools.feeTiersSeen || []).join(", ");
+    swApy.textContent = "UNAVAILABLE";
+    swSet("ok", "LIVE · " + new Date(d.fetchedAt || Date.now()).toLocaleTimeString());
+    swBody.innerHTML = "";
+    (pools.pools || []).slice(0, 10).forEach(function(p) {
+      var tr = document.createElement("tr");
+      function td(txt, cls) {
+        var c = document.createElement("td");
+        c.style.padding = ".6rem .9rem";
+        if (cls) c.className = cls;
+        c.textContent = txt == null ? "—" : txt;
+        return c;
+      }
+      var ta = p.tokenA || {}, tb = p.tokenB || {};
+      tr.appendChild(td(ta.symbol + " / " + tb.symbol));
+      tr.appendChild(td(String(p.id)));
+      tr.appendChild(td(ta.symbol + " (" + ta.id + ")"));
+      tr.appendChild(td(tb.symbol + " (" + tb.id + ")"));
+      tr.appendChild(td(p.liquidity));
+      tr.appendChild(td((p.fee / 10000) + "%"));
+      tr.appendChild(td(new Date(d.fetchedAt).toISOString(), "muted"));
+      tr.appendChild(td("UNAVAILABLE", "muted"));
+      swBody.appendChild(tr);
+    });
+  } catch (e) {
+    swSet("err", "error");
+    if (swBody) {
+      swBody.innerHTML = '<tr><td colspan="8" class="muted" style="padding:1rem">SaucerSwap unavailable: ' + String(e) + "</td></tr>";
+    }
+  }
+}
+loadSaucer();
 </script>
 </body>
 </html>
