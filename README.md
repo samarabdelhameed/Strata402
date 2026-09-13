@@ -12,11 +12,11 @@ An independent consuming agent discovers the service, receives an HTTP 402 chall
 ![Network](https://img.shields.io/badge/network-Hedera%20Testnet-00AFAA)
 ![Protocol](https://img.shields.io/badge/protocol-x402%20v2-4B5563)
 
-## Demo — Automated Terminal Verification Runbook
+## System Verification & Live Protocol Demo
 
-![Strata402 Automated Judge Verification Terminal Demo](docs/assets/strata402-judge-verification-runbook.gif)
+![Strata402 Terminal Verification Runbook](docs/assets/strata402-judge-verification-runbook.gif)
 
-> **Auto-playing Terminal Runbook:** The animated demo above records all 9 runbook verification phases executed live on Hedera Testnet in sequence. Full 1080p MP4 video available at [`docs/assets/strata402-judge-verification-runbook.mp4`](docs/assets/strata402-judge-verification-runbook.mp4).
+> **End-to-End Verification Record:** Automated execution of the 9-stage verification runbook on Hedera Testnet, demonstrating x402 payment challenges, Blocky402 settlement, Mirror Node queries, and HCS audit logging. For the high-definition recording, see [`docs/assets/strata402-judge-verification-runbook.mp4`](docs/assets/strata402-judge-verification-runbook.mp4).
 
 ## Why Strata402
 
@@ -35,7 +35,7 @@ Strata402 targets the **AI & Agentic Payments on Hedera** track.
 | Independent consuming agent | `apps/consuming-agent` handles discovery, payment, and retry | CLI implementation and C1 flow |
 | Real paid request | `0.01 HBAR` transferred on Hedera Testnet | Transaction `0.0.7162784-1789299896-582181958` |
 | Public repository and README | Setup, architecture, API, security, and evidence documented here | This repository |
-| Demo video | Automated terminal verification runbook (under 5 mins) | [Recorded Runbook Video](docs/assets/strata402-judge-verification-runbook.gif) |
+| Demo video | End-to-end terminal verification runbook (<5 mins) | [`strata402-judge-verification-runbook.mp4`](docs/assets/strata402-judge-verification-runbook.mp4) |
 
 The qualification-critical path does not depend on optional smart contracts, SaucerSwap execution, Bonzo data, HTS payments, or HCS-14 identity registration.
 
