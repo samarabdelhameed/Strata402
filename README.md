@@ -16,7 +16,9 @@ Strata402 is an HTTP-native, x402-gated metered API gateway and autonomous AI De
 
 ![Strata402 Terminal Verification Runbook](media/strata402-demo.gif)
 
-> **End-to-End Hedera Verification Record:** Automated execution of the 9-stage verification runbook on Hedera Testnet, demonstrating x402 payment challenges, Blocky402 settlement, Mirror Node queries, and HCS audit logging. For the high-definition recording, see [`docs/assets/strata402-judge-verification-runbook.mp4`](docs/assets/strata402-judge-verification-runbook.mp4).
+> **End-to-End Hedera Verification Record:** Automated execution of the 9-stage verification runbook on Hedera Testnet, demonstrating x402 payment challenges, Blocky402 settlement, Mirror Node queries, and HCS audit logging.
+> - 📺 **HD Video (Silent Runbook):** [`docs/assets/strata402-judge-verification-runbook.mp4`](docs/assets/strata402-judge-verification-runbook.mp4)
+> - 🎙️ **HD Video (Cloned Voiceover - `voice_agintect_ai`):** [`docs/assets/strata402-judge-verification-voiceover.mp4`](docs/assets/strata402-judge-verification-voiceover.mp4)
 
 ## The Problem & Solution
 
