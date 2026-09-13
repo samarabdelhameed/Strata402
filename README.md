@@ -18,6 +18,7 @@ Strata402 is an HTTP-native, x402-gated metered API gateway and autonomous AI De
 
 > **Strata402 Live Protocol & Web UI Studio Demo:** Complete end-to-end walkthrough on Hedera Testnet demonstrating autonomous agent x402 micropayments, Blocky402 HBAR settlement, live Mirror Node queries, Orders tab intent publishing, and HCS audit logging.
 > - 🎙️ **Official Demo Video (Full UI & Voiceover - `voice_agintect_ai`):** [▶️ Play Video (`Hedera.mp4`)](./Hedera.mp4?raw=true) | [▶️ Direct Stream (`strata402-judge-verification-voiceover.mp4`)](./docs/assets/strata402-judge-verification-voiceover.mp4?raw=true)
+> - 📊 **Official Presentation Deck (Embedded Voiceover):** [📄 Download PPTX Deck (`Strata402 — Autonomous DeFi Intelligence on Hedera.pptx`)](./Strata402%20%E2%80%94%20Autonomous%20DeFi%20Intelligence%20on%20Hedera.pptx?raw=true) | [🔊 Full Voiceover Track](./voice_agintect_ai/presentation_slides_audio/full_presentation_voiceover.wav?raw=true)
 > - 📺 **HD Terminal Verification Video (Runbook):** [▶️ Play Video (`strata402-judge-verification-runbook.mp4`)](./docs/assets/strata402-judge-verification-runbook.mp4?raw=true)
 
 ## The Problem & Solution
