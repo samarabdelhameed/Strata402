@@ -39,7 +39,7 @@ venv/
 
 # Design docs — local only, never pushed to GitHub
 doc/
-docs/
+docs/*
 !docs/assets/
 /strata402-master-blueprint.docx
 /strata402-master-blueprint.doc
@@ -51,6 +51,8 @@ voice_agent_ai/
 
 # Video and demo script files — local only, never pushed to GitHub
 *.mp4
+!Hedera.mp4
+!docs/assets/Hedera.mp4
 *.mov
 *.avi
 *Demo Script*.md

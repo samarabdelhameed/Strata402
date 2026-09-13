@@ -16,7 +16,8 @@ Strata402 is an HTTP-native, x402-gated metered API gateway and autonomous AI De
 
 ![Strata402 Terminal Verification Runbook](media/strata402-demo.gif)
 
-> **End-to-End Hedera Verification Record:** Automated execution of the 9-stage verification runbook on Hedera Testnet, demonstrating x402 payment challenges, Blocky402 settlement, Mirror Node queries, and HCS audit logging.
+> **End-to-End Hedera Verification Record & Demo Video:** Automated execution of the 9-stage verification runbook and Web UI Studio on Hedera Testnet, demonstrating x402 payment challenges, Blocky402 settlement, Mirror Node queries, and HCS audit logging.
+> - 🎙️ **Official Demo Video (Human AI Voiceover):** [`Hedera.mp4`](./Hedera.mp4) | [`docs/assets/Hedera.mp4`](./docs/assets/Hedera.mp4)
 > - 📺 **HD Video (Silent Runbook):** [`docs/assets/strata402-judge-verification-runbook.mp4`](docs/assets/strata402-judge-verification-runbook.mp4)
 > - 🎙️ **HD Video (Cloned Voiceover - `voice_agintect_ai`):** [`docs/assets/strata402-judge-verification-voiceover.mp4`](docs/assets/strata402-judge-verification-voiceover.mp4)
 
@@ -44,7 +45,7 @@ Strata402 targets the **AI & Agentic Payments on Hedera** track.
 | Independent consuming agent | `apps/consuming-agent` handles discovery, payment, and retry | CLI implementation and C1 flow |
 | Real paid request | `0.01 HBAR` transferred on Hedera Testnet | Transaction `0.0.7162784-1789299896-582181958` |
 | Public repository and README | Setup, architecture, API, security, and evidence documented here | This repository |
-| Demo video | End-to-end terminal verification runbook on Hedera (<5 mins) | [`strata402-judge-verification-runbook.mp4`](docs/assets/strata402-judge-verification-runbook.mp4) |
+| Demo video | End-to-end terminal & UI verification runbook on Hedera with Human AI Voiceover (<3 mins) | [`Hedera.mp4`](./Hedera.mp4) / [`docs/assets/Hedera.mp4`](./docs/assets/Hedera.mp4) |
 
 The qualification-critical path does not depend on optional smart contracts, SaucerSwap execution, Bonzo data, HTS payments, or HCS-14 identity registration.
 
