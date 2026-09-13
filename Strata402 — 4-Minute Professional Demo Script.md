@@ -4,9 +4,9 @@
 ## 🎯 هدف الفيديو والجمهور المستهدف
 فيديو ديمو احترافي مدته **4 دقائق (3:45 إلى 4:00 دقيقة)** مخصص لحكام **ETHGlobal 2026 / Hedera Track**.
 يغطي الديمو الدورة الكاملة (Full-Stack End-to-End):
-1. **الـ Terminal / Backend**: تشغيل وفحص الـ Gateway والـ AI Engine والـ CLI Consuming Agent.
-2. **الـ Frontend (Web UI)**: التفاعل المباشر على `http://localhost:3000` وااختبار الـ x402 Paid Strategy و HCS Audit Log و Onchain Orders.
-3. **إثبات الـ On-Chain**: استعراض الحسابات والمستندات الحية والمعاملات الموثقة على Hedera Testnet Mirror Node و HashScan.
+1. **الـ Terminal / Backend**: تشغيل وفحص الـ Gateway والـ AI Engine وأوامر الـ `curl` لاستخراج الإثباتات المباشرة من Hedera Mirror Node و Blocky402.
+2. **الـ Frontend (Web UI)**: التفاعل المباشر على `http://localhost:3000` واختبار الـ x402 Paid Strategy و HCS Audit Log و Onchain Orders.
+3. **إثبات الـ On-Chain المزدوج**: استعراض المخرجات من التيرمينال ومن متصفح HashScan المباشر.
 
 ---
 
@@ -22,7 +22,7 @@
 | **Price / Call** | `1,000,000 tinybars` (`0.01 HBAR`) |
 | **Verified Transaction ID** | `0.0.7162784-1789280004-167416393` |
 | **HCS Audit Topic** | `0.0.10483725` |
-| **HCS Sequence** | `49` |
+| **HCS Sequence** | `52` |
 | **Verified Contracts** | `AutoSwapLimit` (`0.0.10506192`) & `HederaYieldVault` (`0.0.10506193`) |
 
 ---
@@ -31,7 +31,7 @@
 
 ---
 
-### ⏱️ [0:00 – 0:40] 1. الفكرة والـ Backend Health & C0 Discovery (Terminal)
+### ⏱️ [0:00 – 0:45] 1. الفكرة والـ Backend Health & Live Blocky402 Check (Terminal)
 
 #### 🖥️ الشاشة (Screen)
 افتح التيرمينال (Terminal) واعرض شاشتين أو نافذتين:
@@ -46,24 +46,71 @@ curl -s http://localhost:8000/health
 {"status":"ok","service":"strata402-ai-engine","network":"hedera:testnet","llmNarration":false}
 ```
 
-2. نفذ الـ C0 Discovery Preflight لـ x402 Protocol:
+2. نفذ الـ C0 Discovery Preflight وافحص Blocky402 Host مباشر بالـ curl:
 ```bash
 bun run preflight:c0
+curl -s "https://api.testnet.blocky402.com/supported" | jq '.kinds[] | select(.network=="hedera:testnet")'
 ```
 **النتيجة في الشاشة**:
-```text
-✔ Discovery ok: payTo=0.0.10464194, price=1000000 tinybars (0.01 HBAR)
-✔ HTTP 402 challenge verified: feePayer=0.0.7162784, facilitator=https://api.testnet.blocky402.com
+```json
+{
+  "x402Version": 2,
+  "scheme": "exact",
+  "network": "hedera:testnet",
+  "extra": {
+    "feePayer": "0.0.7162784"
+  }
+}
 ```
 
 #### 🎙️ الكلام الصوتي (English Script)
 > "Hi everyone, this is Strata402 — Autonomous DeFi Intelligence for Machine-to-Machine Payments on Hedera.
 > Strata402 lets autonomous agents discover paid AI strategy services, process x402 micropayments via Blocky402, receive deterministic risk analysis, and log immutable audit entries on Hedera Consensus Service.
-> As you can see in our terminal, our Express Gateway and Python AI Engine are live on Hedera Testnet. Running our C0 discovery preflight confirms an active HTTP 402 challenge requesting exactly 0.01 HBAR via Blocky402 fee payer 0.0.7162784."
+> As you can see in our terminal, our Express Gateway and Python AI Engine are live on Hedera Testnet. Querying the official Blocky402 testnet facilitator confirms active support for Hedera Testnet with exact scheme and fee payer 0.0.7162784."
 
 ---
 
-### ⏱️ [0:40 – 2:00] 2. الـ Frontend Live Experience & x402 Paid Execution (Web UI)
+### ⏱️ [0:45 – 1:30] 2. إثبات الـ Backend Transaction & HCS Topic المباشر بالـ Terminal Commands
+
+#### 🖥️ الشاشة (Screen)
+في التيرمينال، شغّل الأوامر التالية لإستخراج الإثبات المباشر من Hedera Mirror Node:
+
+1. **إثبات تحويل الـ 0.01 HBAR الموثق**:
+```bash
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789280004-167416393" | jq '{result: .transactions[0].result, transfers: .transactions[0].transfers}'
+```
+**النتيجة في الشاشة**:
+```json
+{
+  "result": "SUCCESS",
+  "transfers": [
+    { "account": "0.0.7162784", "amount": -266094 },
+    { "account": "0.0.10329902", "amount": -1000000 },
+    { "account": "0.0.10464194", "amount": 1000000 }
+  ]
+}
+```
+
+2. **إثبات الـ HCS Audit Message المباشر**:
+```bash
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10483725/messages?limit=1&order=desc" | jq '{seq: .messages[0].sequence_number, payload: (.messages[0].message | @base64d)}'
+```
+**النتيجة في الشاشة**:
+```json
+{
+  "seq": 52,
+  "payload": "{\"requestId\":\"d0fd0709-08bc-456f-861a-6f8ebc08fb89\",\"endpoint\":\"/v1/strategy/yield-risk\",\"status\":\"200\"}"
+}
+```
+
+#### 🎙️ الكلام الصوتي (English Script)
+> "Directly from our backend terminal, we query the Hedera Mirror Node API.
+> The transaction result is SUCCESS: Payer 0.0.10329902 transferred exactly 1,000,000 tinybars (0.01 HBAR) to service account 0.0.10464194 with Blocky402 covering the network fee.
+> Furthermore, querying our HCS Topic 0.0.10483725 retrieves the live base64 decoded audit entry, matching our API request ID and status 200."
+
+---
+
+### ⏱️ [1:30 – 2:45] 3. الـ Frontend Live Experience & x402 Paid Execution (Web UI)
 
 #### 🖥️ الشاشة (Screen)
 انتقل إلى المتصفح على `http://localhost:3000` وادخل قسم **AI Studio** (`/studio`).
@@ -87,11 +134,11 @@ bun run preflight:c0
 
 ---
 
-### ⏱️ [2:00 – 2:50] 3. التدقيق الحي HCS Audit & Onchain Orders (`/audit` & `/orders`)
+### ⏱️ [2:45 – 3:30] 4. التدقيق الحي HCS Audit & Onchain Orders (`/audit` & `/orders`)
 
 #### 🖥️ الشاشة (Screen)
 1. انتقل إلى تبويب **HCS Auditor** (`/audit`).
-   - سلط الضوء على Topic `0.0.10483725` والـ Sequence (Seq `49`) والـ Decoded JSON Payload الذي يحتوي على رقم الـ Transaction والـ Status `200`.
+   - سلط الضوء على Topic `0.0.10483725` والـ Sequence (Seq `52`) والـ Decoded JSON Payload الذي يحتوي على رقم الـ Transaction والـ Status `200`.
 2. انتقل إلى تبويب **Orders** (`/orders`).
    - اضغط على **🚀 Create Onchain Limit Order** (لطلب شراء HBAR/USDC).
    - أظهر تسجيل نية الأمر على HCS بنجاح، مع إبقاء حالة التنفيذ `PENDING FEED` أمادًا للمستخدم.
@@ -102,63 +149,33 @@ bun run preflight:c0
 
 ---
 
-### ⏱️ [2:50 – 3:35] 4. إثبات الـ On-Chain الحقيقي (Mirror Node & HashScan)
+### ⏱️ [3:30 – 4:00] 5. الختام وإثبات HashScan (Summary & Wrap Up)
 
 #### 🖥️ الشاشة (Screen)
-افتح التبويبات التالية في المتصفح واستعرضها:
-1. **HashScan Paid Transaction**:
-   `https://hashscan.io/testnet/transaction/0.0.7162784-1789280004-167416393`
-   - أظهر حالة `SUCCESS` والمبلغ `1,000,000 tinybars` من الحساب `0.0.10329902` إلى `0.0.10464194`.
-2. **HashScan HCS Topic**:
-   `https://hashscan.io/testnet/topic/0.0.10483725`
-3. **Bytecode Verified Smart Contracts**:
-   `AutoSwapLimit` (`0.0.10506192`) و `HederaYieldVault` (`0.0.10506193`).
-
-#### 🎙️ الكلام الصوتي (English Script)
-> "Here is our independent on-chain proof on HashScan:
-> Transaction 0.0.7162784-1789280004-167416393 is SUCCESSFUL on Hedera Testnet, transferring 0.01 HBAR from payer 0.0.10329902 to service account 0.0.10464194 via Blocky402 fee payer.
-> We also see our HCS topic with all audit entries, and our deployed smart contracts AutoSwapLimit and HederaYieldVault, which are source-code verified on HashScan."
-
----
-
-### ⏱️ [3:35 – 4:00] 5. الختام (Summary & Wrap Up)
-
-#### 🖥️ الشاشة (Screen)
-ارجع إلى شاشة **Studio** أو صفحة الـ Dashboard الرئيسية ذات التصميم الداكن الفاخر.
+افتح متصفح HashScan سريعا على المعاملة:
+`https://hashscan.io/testnet/transaction/0.0.7162784-1789280004-167416393`
+ثم ارجع لشاشة الـ Dashboard الرئيسية.
 
 #### 🎙️ الكلام الصوتي (English Script)
 > "To summarize: Strata402 delivers a complete, production-ready pay-per-call AI strategy gateway on Hedera Testnet.
-> Powered by x402 v2, settled by Blocky402, audited by HCS, and built with strict failure safety and zero fake data.
+> Verified on-chain via Hedera Mirror Node, settled by Blocky402, audited by HCS, and built with strict failure safety and zero fake data.
 > Thank you for watching!"
 
 ---
 
-## 🛠️ الأوامر المستخدمة قبل وأثناء التسجيل (Cheat Sheet)
+## 🛠️ الأوامر السريعة الجاهزة للنسخ في التيرمينال أثناء الفيديو
 
 ```bash
-# 1. فحص سلامة الـ Services (Terminal)
+# 1. فحص صحة الخوادم
 curl -s http://localhost:8080/health
 curl -s http://localhost:8000/health
 
-# 2. فحص C0 Discovery و 402 Challenge (Terminal)
-bun run preflight:c0
+# 2. فحص دعم Blocky402 Testnet و Fee Payer
+curl -s "https://api.testnet.blocky402.com/supported" | jq '.kinds[] | select(.network=="hedera:testnet")'
 
-# 3. فحص الاختبارات الشاملة (Terminal)
-bun test
+# 3. استخراج تفاصيل المعاملة الحية من Mirror Node
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789280004-167416393" | jq '{result: .transactions[0].result, transfers: .transactions[0].transfers}'
 
-# 4. تشغيل C1 CLI Paid Request الحي (اختياري لتصوير الـ Terminal)
-STRATA402_RUN_C1=true STRATA402_C1_CONFIRM=true bun run preflight:c1
+# 4. قراءة وفك تشفير آخر رسالة HCS Audit من Mirror Node
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10483725/messages?limit=1&order=desc" | jq '{seq: .messages[0].sequence_number, payload: (.messages[0].message | @base64d)}'
 ```
-
----
-
-## 🔗 الروابط الجاهزة للفتح أثناء الفيديو
-
-1. **HashScan Paid Transaction**:
-   `https://hashscan.io/testnet/transaction/0.0.7162784-1789280004-167416393`
-2. **HashScan HCS Audit Topic**:
-   `https://hashscan.io/testnet/topic/0.0.10483725`
-3. **Verified AutoSwap Contract**:
-   `https://hashscan.io/testnet/contract/0xbB1c5210B395253B66eA8B8326083c7fD63E2978`
-4. **Web UI**:
-   `http://localhost:3000`
