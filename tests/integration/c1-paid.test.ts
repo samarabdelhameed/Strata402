@@ -183,7 +183,7 @@ test("isC1Enabled requires exactly STRATA402_RUN_C1=true", () => {
 });
 
 test("runC1 is closed by default and never touches the network", async () => {
-  await expectC1Error(() => runC1({}), "CLOSED_REQUIRED");
+  await expectC1Error(() => runC1({ env: {} }), "CLOSED_REQUIRED");
 });
 
 test("empty certified allow-list fails closed before any network call", async () => {

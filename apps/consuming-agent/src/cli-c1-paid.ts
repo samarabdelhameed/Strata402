@@ -627,14 +627,8 @@ export async function runC1(options: C1Options = {}): Promise<C1Report> {
 
   traffic.paymentSends += 1;
   let evidence = result.evidence;
-  try {
-    const rawText = await result.response.text();
-    if (rawText) {
-      const parsedBody = JSON.parse(rawText);
-      evidence = { ...evidence, body: parsedBody } as typeof result.evidence;
-    }
-  } catch {
-    // ignore
+  if (result.body) {
+    evidence = { ...evidence, body: result.body } as typeof result.evidence;
   }
 
   if (evidence.paymentStatus === "settled") {
