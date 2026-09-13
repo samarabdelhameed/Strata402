@@ -40,5 +40,11 @@ venv/
 # Design docs — local only, never pushed to GitHub
 doc/
 docs/
+!docs/assets/
 /strata402-master-blueprint.docx
 /strata402-master-blueprint.doc
+
+# Local Voice AI folder — never pushed to GitHub
+voice_agintect_ai/
+voice-agintect-ai/
+voice_agent_ai/

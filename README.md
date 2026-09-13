@@ -12,6 +12,12 @@ An independent consuming agent discovers the service, receives an HTTP 402 chall
 ![Network](https://img.shields.io/badge/network-Hedera%20Testnet-00AFAA)
 ![Protocol](https://img.shields.io/badge/protocol-x402%20v2-4B5563)
 
+## Demo — Automated Terminal Verification Runbook
+
+![Strata402 Automated Judge Verification Terminal Demo](docs/assets/strata402-judge-verification-runbook.gif)
+
+> **Auto-playing Terminal Runbook:** The animated demo above records all 9 runbook verification phases executed live on Hedera Testnet in sequence. Full 1080p MP4 video available at [`docs/assets/strata402-judge-verification-runbook.mp4`](docs/assets/strata402-judge-verification-runbook.mp4).
+
 ## Why Strata402
 
 Autonomous agents need useful services without API keys, subscription accounts, or manual approval for every request. Service providers need payment infrastructure that is native to HTTP and practical for small machine-to-machine transactions.
@@ -27,9 +33,9 @@ Strata402 targets the **AI & Agentic Payments on Hedera** track.
 | Live x402-gated service | `POST /v1/strategy/yield-risk` protected by x402 v2 | Gateway and live C1 run |
 | Blocky402 settlement | `https://api.testnet.blocky402.com` | Hosted facilitator capability check and live settlement |
 | Independent consuming agent | `apps/consuming-agent` handles discovery, payment, and retry | CLI implementation and C1 flow |
-| Real paid request | `0.01 HBAR` transferred on Hedera Testnet | Transaction `0.0.7162784-1789280004-167416393` |
+| Real paid request | `0.01 HBAR` transferred on Hedera Testnet | Transaction `0.0.7162784-1789299896-582181958` |
 | Public repository and README | Setup, architecture, API, security, and evidence documented here | This repository |
-| Demo video | Final video must show the paid request in five minutes or less | Add final video link before submission |
+| Demo video | Automated terminal verification runbook (under 5 mins) | [Recorded Runbook Video](docs/assets/strata402-judge-verification-runbook.gif) |
 
 The qualification-critical path does not depend on optional smart contracts, SaucerSwap execution, Bonzo data, HTS payments, or HCS-14 identity registration.
 
@@ -37,7 +43,8 @@ The qualification-critical path does not depend on optional smart contracts, Sau
 
 | Field | Verified value |
 | :--- | :--- |
-| Transaction ID | `0.0.7162784-1789280004-167416393` |
+| Transaction ID | `0.0.7162784-1789299896-582181958` |
+| Request ID (`/api/paid` ↔ HCS) | `d0fd0709-08bc-456f-861a-6f8ebc08fb89` |
 | Payer | `0.0.10329902` |
 | Service account (`payTo`) | `0.0.10464194` |
 | Facilitator fee payer | `0.0.7162784` |
@@ -47,16 +54,47 @@ The qualification-critical path does not depend on optional smart contracts, Sau
 | x402 version | `2` |
 | Facilitator | `https://api.testnet.blocky402.com` |
 | Hedera result | `SUCCESS` |
+| Consensus timestamp | `1789299911.969013413` |
 | HCS topic | `0.0.10483725` |
-| Latest observed HCS sequence | `49` |
+| Latest observed HCS sequence | `52` |
+| HCS consensus timestamp | `1789299912.217294104` |
 | Paid endpoint | `/v1/strategy/yield-risk` |
 | Paid response | `HTTP 200` |
 
-Verify the settlement through [Hedera Mirror Node](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789280004-167416393) or [HashScan Testnet](https://hashscan.io/testnet/transaction/0.0.7162784-1789280004-167416393).
+Verify the settlement through [Hedera Mirror Node](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789299896-582181958) or [HashScan Testnet](https://hashscan.io/testnet/transaction/0.0.7162784-1789299896-582181958).
 
-The latest HCS event records the request identifier, endpoint, and successful response status. HCS events do not store private keys, full payment payloads, or full AI transcripts.
+Verify the audit trail through [Hedera Mirror Node](https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10483725/messages?limit=1&order=desc) or [HashScan Testnet](https://hashscan.io/testnet/topic/0.0.10483725).
 
-Earlier Testnet settlement records include `0.0.9185802-1789162601-197120935`, `0.0.9185802-1789101908-717608026`, and `0.0.9185802-1789164101-943032414`.
+The latest HCS event records the order request identifier, endpoint, and successful response status (`{"requestId":"d0fd0709-08bc-456f-861a-6f8ebc08fb89","endpoint":"/v1/strategy/yield-risk","status":"200",...}`). The observability loop is sealed end-to-end: the `requestId` echoed by `/api/paid` is the exact same UUID inside the HCS message, so the API call and the on-chain audit entry are provably the same request — never a separate event or an arbitrary ID. HCS events do not store private keys, full payment payloads, or full AI transcripts.
+
+Earlier Testnet settlement records include `0.0.9185802-1789162601-197120935`, `0.0.9185802-1789101908-717608026`, `0.0.9185802-1789164101-943032414`, and the web-studio live runs `0.0.7162784-1789299072-132216527` (HCS seq `51`) and `0.0.7162784-1789299896-582181958` (HCS seq `52`).
+
+### Final on-chain proof — Hedera Mirror Node
+
+Live values pulled from `GET https://testnet.mirrornode.hedera.com` (read-only, no new payment):
+
+**Transaction transfers — `0.0.7162784-1789299896-582181958` (`SUCCESS`, consensus `1789299911.969013413`)**
+
+| Account | Amount (tinybars) | Role |
+| :--- | ---: | :--- |
+| `0.0.7162784` | `-265,670` | Blocky402 signer / fee payer (tx fee) |
+| `0.0.10329902` | `-1,000,000` | Buyer (0.01 HBAR) |
+| `0.0.10464194` | `+1,000,000` | Service account (payTo) |
+
+**Decoded HCS audit event — Topic `0.0.10483725`, sequence `52`, consensus `1789299912.217294104` (next block after payment)**
+
+```json
+{
+  "requestId": "d0fd0709-08bc-456f-861a-6f8ebc08fb89",
+  "endpoint": "/v1/strategy/yield-risk",
+  "status": "200",
+  "paymentTxId": null,
+  "blockTimestamp": null,
+  "at": "2026-09-13T11:45:10.977Z"
+}
+```
+
+The chain is complete and verifiable in isolation: **`/api/paid` response → same requestId in HCS event → HCS sequence `52` → Mirror Node transaction `SUCCESS`**.
 
 ## Payment Flow
 
@@ -239,9 +277,10 @@ bun test tests/unit
 
 The latest recorded safe verification reported:
 
-- TypeScript unit tests: **168 passed, 0 failed**.
+- TypeScript unit tests: **212 passed, 0 failed** (6 live-network tests skipped intentionally).
 - Python tests: **26 passed, 0 failed**.
-- TypeScript typecheck: **passed**.
+- TypeScript typecheck (root + web): **passed**.
+- Next.js production build: **passed**.
 - No transaction, signature, or facilitator settlement call was made during offline verification.
 
 Some unit and state-machine tests intentionally use mocks or stubs. They verify validation and control-flow behavior; they are not evidence of a live payment.
