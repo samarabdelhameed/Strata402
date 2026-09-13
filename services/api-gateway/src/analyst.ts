@@ -413,6 +413,14 @@ export function createYieldRiskHandler(deps: YieldRiskHandlerDeps) {
         .catch(() => undefined);
     };
 
+    // Attach the SAME requestId that was published in the HCS audit event to
+    // the paid response, so the caller can prove the API call ↔ HCS message
+    // link end-to-end. Never generates a separate id for the response.
+    const withRequestId = <T extends object>(body: T): T & { requestId: string } => ({
+      ...body,
+      requestId,
+    });
+
     const parsed = parseYieldRiskContract(req.body);
     if (!parsed.ok) {
       res.setHeader("Content-Type", "application/json");
@@ -426,7 +434,7 @@ export function createYieldRiskHandler(deps: YieldRiskHandlerDeps) {
     if (engineResponse !== null) {
       fireAudit("200");
       res.setHeader("Content-Type", "application/json");
-      res.status(200).json(engineResponse);
+      res.status(200).json(withRequestId(engineResponse));
       return;
     }
 
@@ -439,11 +447,11 @@ export function createYieldRiskHandler(deps: YieldRiskHandlerDeps) {
       });
       fireAudit("200");
       res.setHeader("Content-Type", "application/json");
-      res.status(200).json(analyzeMirrorRead(read, request, network, nowSeconds, staleAfterSeconds));
+      res.status(200).json(withRequestId(analyzeMirrorRead(read, request, network, nowSeconds, staleAfterSeconds)));
     } catch (error) {
       fireAudit("200");
       res.setHeader("Content-Type", "application/json");
-      res.status(200).json(analyzeDegraded(account, error, request, network));
+      res.status(200).json(withRequestId(analyzeDegraded(account, error, request, network)));
     }
   };
 }

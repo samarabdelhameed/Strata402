@@ -88,6 +88,8 @@ export interface PaidRequestEvidence {
   httpStatus: number;
   paymentStatus: PaidPaymentStatus;
   phase: PaidRequestPhase;
+  /** Parsed JSON body of the gateway response (populated on success). */
+  body?: unknown;
 }
 
 export interface PaidRequestResult {

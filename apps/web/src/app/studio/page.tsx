@@ -4,11 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { AppFrame } from "@/components/AppFrame";
 import { usePayment, DEFAULT_ACCOUNT } from "@/components/PaymentSheet";
 import { useApi } from "@/hooks/useApi";
+import PaidAnalysisResult from "@/components/PaidAnalysisResult";
+import { buildStudioAnalysisView, requestIdConsistency, type StudioAnalysisView } from "@/lib/assistant";
 
 interface AccountResponse {
   ok: boolean;
   exists: boolean;
   balanceHbar: string;
+  balanceTimestamp?: string | null;
+  recent30dHbarIn?: string;
+  recent30dHbarOut?: string;
+  transactionCount?: number;
 }
 
 interface StatusResponse {
@@ -22,7 +28,27 @@ interface StatusResponse {
 interface HcsResponse {
   ok: boolean;
   topicId: string;
-  messages: Array<{ sequenceNumber: number; runningHash: string }>;
+  messages: Array<{ sequenceNumber: number; runningHash: string; message?: string }>;
+  error?: string;
+}
+
+interface ActivityResponse {
+  ok: boolean;
+  total: number;
+  inflowHbar: string;
+  outflowHbar: string;
+  netHbar: string;
+  fromTs: number | null;
+  toTs: number | null;
+  error?: string;
+}
+
+interface SaucerResponse {
+  ok: boolean;
+  readOnly?: boolean;
+  poolCount?: number;
+  tokenCount?: number;
+  apyStatus?: string;
   error?: string;
 }
 
@@ -32,6 +58,7 @@ interface Settlement {
   payerAccountId: string;
   recipientAccountId: string;
   amountTinybars: string;
+  consensusTimestamp?: string | null;
 }
 
 interface PaidResult {
@@ -41,6 +68,12 @@ interface PaidResult {
   paymentStatus?: string | null;
   settlement?: Settlement | null;
   narrativePoints?: string[];
+  audit?: {
+    requestId?: string;
+    topicId?: string;
+    sequenceNumber?: number;
+    status?: string;
+  };
 }
 
 interface ChatMsg {
@@ -49,11 +82,12 @@ interface ChatMsg {
   badge?: string;
 }
 
-type StepState = "pending" | "done" | "idle";
+type StepState = "pending" | "done" | "idle" | "gated";
 
 export default function StudioPage() {
   const { openPay } = usePayment();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [latestAnalysis, setLatestAnalysis] = useState<StudioAnalysisView | null>(null);
   const [composerValue, setComposerValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [stepPay, setStepPay] = useState<StepState>("idle");
@@ -63,6 +97,11 @@ export default function StudioPage() {
   const account = useApi<AccountResponse>(`/api/account?accountId=${DEFAULT_ACCOUNT}`, 30_000);
   const status = useApi<StatusResponse>("/api/status", 30_000);
   const hcs = useApi<HcsResponse>("/api/hcs?limit=2", 20_000);
+  const activity = useApi<ActivityResponse>(
+    `/api/tx-activity?accountId=${DEFAULT_ACCOUNT}&buckets=8`,
+    30_000,
+  );
+  const saucer = useApi<SaucerResponse>("/api/saucerswap", 30_000);
 
   const priceHbar =
     status.data?.services.body?.services?.[0]?.priceTinybars !== undefined
@@ -80,10 +119,10 @@ export default function StudioPage() {
       setMessages([
         {
           role: "ai",
-          text: `Hi — live account ${DEFAULT_ACCOUNT} holds ${balance} HBAR on hedera:testnet. Each analysis settles exactly ${priceHbar} HBAR via Blocky402 and is audited on HCS ${topicId}${
+          text: `Hi — I can analyze live Hedera account data (${DEFAULT_ACCOUNT} holds ${balance} HBAR on hedera:testnet) and return a paid, auditable risk assessment. Strategy execution is currently read-only and gated, so this session never moves or trades funds. Each analysis settles exactly ${priceHbar} HBAR via Blocky402 and is audited on HCS ${topicId}${
             lastSeq ? ` (last seq ${lastSeq})` : ""
-          }. Send any prompt and I will run the real paid pipeline and show the on-chain evidence below.`,
-          badge: "⚡ x402 exact · Blocky402 · hedera:testnet",
+          }. Send any prompt to start.`,
+          badge: "⚡ x402 exact · Blocky402 · hedera:testnet · execution gated",
         },
       ]);
     }
@@ -112,30 +151,84 @@ export default function StudioPage() {
         setStepPay("done");
         setStepAnalysis("done");
         const s = json.settlement;
-        const lowerPrompt = text.toLowerCase();
-        const pts = json.narrativePoints && json.narrativePoints.length > 0 ? json.narrativePoints : [];
-        let promptAnalysis = "Deterministic Risk Evaluation: Live account balance and 30D transaction activity verified. Zero fabricated metrics.";
 
-        if (pts.length > 0) {
-          promptAnalysis = `AI Engine Live Analysis:\n• ${pts.join("\n• ")}`;
-        } else if (lowerPrompt.includes("conservative")) {
-          promptAnalysis = "Conservative Strategy Assessment: Low-risk position validated. Capital preservation parameters active with 75% max LTV boundary.";
-        } else if (lowerPrompt.includes("saucerswap") || lowerPrompt.includes("liquidity")) {
-          promptAnalysis = "SaucerSwap Liquidity Assessment: Live DEX V2 pool pairs observed (HBAR/SAUCE 0.30%). APY marked UNAVAILABLE under the Honesty Contract.";
-        } else if (lowerPrompt.includes("aggressive") || lowerPrompt.includes("yield")) {
-          promptAnalysis = "Aggressive Yield Strategy Assessment: Volatility exposure flagged. Automated stop-loss limit order recommended on-chain.";
-        } else if (text.length > 0) {
-          promptAnalysis = `AI Analysis for "${text}": Custom risk scan completed over real Mirror Node facts.`;
+        // Defensive check: the requestId echoed by /api/paid must equal the
+        // requestId inside the on-chain HCS audit message. Read the freshest
+        // audit message after settlement; best-effort, never blocks the flow.
+        let hcsRequestId: string | undefined;
+        try {
+          const fresh = await fetch("/api/hcs?limit=1", { cache: "no-store" });
+          const freshJson = (await fresh.json()) as HcsResponse;
+          if (freshJson.ok && freshJson.messages.length > 0) {
+            const auditMsg = freshJson.messages[0]?.message;
+            if (typeof auditMsg === "string" && auditMsg.trim() !== "") {
+              const parsed = JSON.parse(auditMsg) as Record<string, unknown>;
+              if (typeof parsed.requestId === "string") hcsRequestId = parsed.requestId;
+            }
+          }
+        } catch {
+          hcsRequestId = undefined;
         }
+        const consistency = requestIdConsistency(json.audit?.requestId, hcsRequestId);
+
+        const view = buildStudioAnalysisView({
+          accountId: DEFAULT_ACCOUNT,
+          network: "hedera:testnet",
+          analyzedAt: new Date().toISOString(),
+          topicId,
+          balanceHbar: account.data?.balanceHbar,
+          balanceExists: account.data?.exists,
+          activity: activity.data
+            ? {
+                ok: activity.data.ok,
+                total: activity.data.total,
+                inflowHbar: activity.data.inflowHbar,
+                outflowHbar: activity.data.outflowHbar,
+                netHbar: activity.data.netHbar,
+                fromTs: activity.data.fromTs,
+                toTs: activity.data.toTs,
+                error: activity.data.error,
+              }
+            : null,
+          saucer: saucer.data
+            ? {
+                ok: saucer.data.ok,
+                readOnly: saucer.data.readOnly,
+                poolCount: saucer.data.poolCount,
+                tokenCount: saucer.data.tokenCount,
+                apyStatus: saucer.data.apyStatus,
+                error: saucer.data.error,
+              }
+            : null,
+          hcsOnline: hcs.data?.ok === true,
+          hcsLastSeq: lastSeq,
+          settlement: {
+            verified: s.verified,
+            transactionId: s.transactionId,
+            payerAccountId: s.payerAccountId,
+            recipientAccountId: s.recipientAccountId,
+            amountTinybars: s.amountTinybars,
+            consensusTimestamp: s.consensusTimestamp ?? undefined,
+          },
+          narrativePoints: json.narrativePoints,
+          audit: json.audit
+            ? {
+                requestId: json.audit.requestId,
+                topicId: json.audit.topicId,
+                sequenceNumber: json.audit.sequenceNumber,
+                status: json.audit.status,
+              }
+            : null,
+          hcsAuditConsistency: { ok: consistency.ok, reason: consistency.reason },
+        });
+        setLatestAnalysis(view);
 
         setMessages((prev) => [
           ...prev,
           {
             role: "ai",
-            text: `${promptAnalysis}\n\nExecuted. Settlement verified on the mirror: ${s.transactionId} (${s.payerAccountId} → ${s.recipientAccountId}, ${(
-              Number(s.amountTinybars) / 1e8
-            ).toFixed(2)} HBAR). Strategy is on-chain audited on HCS ${topicId}; AutoSwap execution stays gated until official protocol keys exist.`,
-            badge: `⚡ Settled ${priceHbar} HBAR via Blocky402`,
+            text: `Payment settled: ${priceHbar} HBAR via Blocky402. Risk assessment completed using live Hedera Mirror Node data. Execution status: Not executed — the strategy execution layer is gated and no funds were moved. Full sectioned analysis below.`,
+            badge: `⚡ Settled ${priceHbar} HBAR · execution gated`,
           },
         ]);
       } else {
@@ -176,7 +269,7 @@ export default function StudioPage() {
 
         <div className="studio-layout">
           <div>
-            <div className="chat-window" ref={scrollRef} style={{ maxHeight: 248, overflowY: "auto" }}>
+            <div className="chat-window" ref={scrollRef} style={{ maxHeight: 260, overflowY: "auto" }}>
               {messages.map((m, i) => (
                 <div key={i} className={`msg ${m.role === "user" ? "user" : "ai"}`}>
                   {m.text}
@@ -194,7 +287,16 @@ export default function StudioPage() {
               ) : null}
             </div>
 
-            <div className="composer">
+            {latestAnalysis ? (
+              <>
+                <div className="section-title" style={{ marginTop: 16 }}>
+                  AI Strategy Analysis
+                </div>
+                <PaidAnalysisResult analysis={latestAnalysis} />
+              </>
+            ) : null}
+
+            <div className="composer" style={{ marginTop: 14 }}>
               <input
                 type="text"
                 placeholder="Type your prompt…"
@@ -209,11 +311,16 @@ export default function StudioPage() {
               </button>
             </div>
 
-            <button className="btn btn-primary btn-block" style={{ marginTop: 14 }} onClick={() => openPay("Strategy Execution")}>
-              🚀 Approve &amp; Execute Strategy
+            <button
+              className="btn btn-primary btn-block"
+              style={{ marginTop: 14 }}
+              onClick={() => openPay("Paid Strategy Analysis")}
+            >
+              Approve &amp; Run Paid Analysis
             </button>
             <div className="note" style={{ marginTop: 8, textAlign: "center" }}>
-              Executes the real paid analysis ({priceHbar} HBAR) and writes on-chain evidence to HCS {topicId}.
+              Settles the real paid analysis ({priceHbar} HBAR) via Blocky402 and renders the assessment.
+              No funds are moved by the strategy execution layer.
             </div>
           </div>
 
@@ -235,14 +342,14 @@ export default function StudioPage() {
               <PipelineStep
                 num="3"
                 title="Deterministic risk analysis"
-                sub="Opaque deterministic engine over real Mirror Node facts — no invented scores"
+                sub="Transparent deterministic analysis over live Mirror Node facts · no invented scores"
                 state={stepAnalysis}
               />
               <PipelineStep
                 num="4"
-                title="AutoSwap execution"
-                sub="PENDING — execution not wired (SaucerSwap read-only is live; APY unavailable)"
-                state="pending"
+                title="Execution guard"
+                sub="GATED — read-only mode · no funds moved (SaucerSwap read-only is live; APY unavailable)"
+                state="gated"
               />
             </div>
 
@@ -278,7 +385,7 @@ function PipelineStep({
 }) {
   return (
     <div className="pipeline-step">
-      <div className={`step-num ${state}`}>{num}</div>
+      <div className={`step-num ${state}`}>{state === "gated" ? "!" : num}</div>
       <div className="step-info">
         <div className="t">{title}</div>
         <div className="s">{sub}</div>

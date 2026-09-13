@@ -248,6 +248,27 @@ test("audit hook receives a 200 paid event with a requestId and endpoint", async
   );
 });
 
+test("the 200 response echoes the SAME requestId as the audit event", async () => {
+  const { fetchFn } = mirrorFixtureFetch({})();
+  const events: Array<Record<string, unknown>> = [];
+  const handler = createYieldRiskHandler({
+    mirrorBaseUrl: "https://mirror.test",
+    fetchFn,
+    auditHcs: async (event) => {
+      events.push(event as unknown as Record<string, unknown>);
+      return undefined;
+    },
+  });
+
+  const { status, payload } = await run(handler, VALID_BODY);
+  expect(status).toBe(200);
+  expect(events).toHaveLength(1);
+  expect(payload!.requestId).toBe(events[0]!.requestId);
+  expect(String(payload!.requestId)).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  );
+});
+
 test("audit hook is not invoked for rejected (400) contracts", async () => {
   const { fetchFn } = mirrorFixtureFetch({})();
   const events: Array<Record<string, unknown>> = [];

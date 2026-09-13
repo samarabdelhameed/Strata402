@@ -8,7 +8,7 @@
 ## 1. Executive Status
 
 > **`VERIFIED_X402_BLOCKY402_END_TO_END`**  
-> The repository and live system are fully verified end-to-end. A real x402 v2 payment request was executed against the official Blocky402 Hosted Testnet Facilitator (`https://api.testnet.blocky402.com`), resulting in a verified on-chain Hedera Testnet transfer (`0.0.7162784-1789280004-167416393`) and an immutable HCS audit entry (`Topic 0.0.10483725`, Sequence `49`).
+> The repository and live system are fully verified end-to-end. Real x402 v2 payments were executed against the official Blocky402 Hosted Testnet Facilitator (`https://api.testnet.blocky402.com`), resulting in verified on-chain Hedera Testnet transfers and immutable HCS audit entries. The final web-studio run settled Transaction `0.0.7162784-1789299896-582181958` and published HCS Sequence `52` on Topic `0.0.10483725` carrying the exact `requestId` (`d0fd0709-08bc-456f-861a-6f8ebc08fb89`) that `/api/paid` echoes — the observability loop is sealed end-to-end.
 
 ---
 
@@ -98,33 +98,37 @@
 
 ## 5. Mirror Node On-Chain Verification
 
-- **Transaction Query**: `GET https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789280004-167416393`
+- **Final Transaction Query**: `GET https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789299896-582181958`
 - **HTTP Status**: `200 OK`
-- **Consensus Timestamp**: `1789280013.105156104`
+- **Consensus Timestamp**: `1789299911.969013413`
 - **Result**: `SUCCESS`
 - **Transfers**:
-  - `0.0.7162784` (Blocky402 Signer / Fee Payer): `-266,094 tinybars` (tx fee)
+  - `0.0.7162784` (Blocky402 Signer / Fee Payer): `-265,670 tinybars` (tx fee)
   - `0.0.10329902` (Buyer): `-1,000,000 tinybars` (-0.01 HBAR)
   - `0.0.10464194` (Service Account): `+1,000,000 tinybars` (+0.01 HBAR)
+
+Earlier verified web-studio run: `0.0.7162784-1789299072-132216527` (HCS seq `51`).
 
 ---
 
 ## 6. HCS Topic Verification
 
-- **Topic Query**: `GET https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10483725/messages?limit=5&order=desc`
-- **New Audit Entry Sequence**: **`49`**
-- **Consensus Timestamp**: `1789280013.021629089` (Matches settlement timestamp)
+- **Topic Query**: `GET https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10483725/messages?limit=1&order=desc`
+- **Latest Audit Entry Sequence**: **`52`**
+- **Consensus Timestamp**: `1789299912.217294104`
 - **Decoded Audit Event Payload**:
   ```json
   {
-    "requestId": "2c963e1d-e7ea-47e0-bc9e-55105b3aa220",
+    "requestId": "d0fd0709-08bc-456f-861a-6f8ebc08fb89",
     "endpoint": "/v1/strategy/yield-risk",
     "status": "200",
     "paymentTxId": null,
     "blockTimestamp": null,
-    "at": "2026-09-13T06:13:32.221Z"
+    "at": "2026-09-13T11:45:10.977Z"
   }
   ```
+
+**Observability loop (sealed)**: The `requestId` returned by the web `POST /api/paid` response is the exact same UUID published in the HCS message above. The consuming agent extracts the request identifier from the gateway's 200 body, the web UI re-derives it from the freshest HCS message, and a defensive consistency check must MATCH before the studio's "HCS Audit Evidence" card renders `Request ID ↔ HCS: Matched`. The audit trail therefore belongs to the very request that paid — there is no separate event and no arbitrary identifier.
 
 ---
 
@@ -133,14 +137,18 @@
 | Requirement | Final Status | Proof & Evidence |
 |---|---|---|
 | **1. Live x402-gated service on Hedera** | **PASS** | `/v1/strategy/yield-risk` returning 402 PAYMENT-REQUIRED |
-| **2. Settlement through Blocky402** | **PASS** | Real settlement executed via `api.testnet.blocky402.com` (Tx `0.0.7162784-1789280004-167416393`) |
+| **2. Settlement through Blocky402** | **PASS** | Real settlement executed via `api.testnet.blocky402.com` (final Tx `0.0.7162784-1789299896-582181958`) |
 | **3. Independent consuming agent** | **PASS** | `apps/consuming-agent` C0/C1 execution client |
 | **4. Real paid request end-to-end** | **PASS** | Verified end-to-end paid flow with 0.01 HBAR settlement |
-| **5. Verifiable HCS audit trail** | **PASS** | Published to Topic `0.0.10483725` (seq 49 verified on-chain) |
+| **5. Verifiable HCS audit trail** | **PASS** | Published to Topic `0.0.10483725` (seq `52` verified on-chain; `requestId` matches the `/api/paid` response) |
 | **6. Deployed Hedera Contracts** | **PASS** | Contracts `0.0.10506192` (`AutoSwapLimit`) & `0.0.10506193` (`HederaYieldVault`) bytecode verified |
 
 ---
 
 ## 8. Remaining Blockers
 
-**NONE**. All technical requirements, Blocky402 testnet facilitator integration, real testnet payments, and HCS audit trail are 100% verified on-chain.
+**NONE**. All technical requirements, Blocky402 testnet facilitator integration, real testnet payments, sealed HCS observability, and honest data integrity are fully verified on-chain.
+
+---
+
+*Audit record updated at the conclusion of the ETHGlobal 2026 demo. Values are pulled directly from Hedera Mirror Node and HashScan and are independently verifiable.*

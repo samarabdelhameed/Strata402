@@ -336,7 +336,7 @@ export async function readHcsAuditMessages(limit = 25): Promise<HcsAuditRead> {
     const url =
       `${MIRROR_BASE_URL}/api/v1/topics/${encodeURIComponent(HCS_AUDIT_TOPIC_ID)}` +
       `/messages?limit=${limit}&order=desc`;
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) });
     if (!res.ok) {
       return {
         ok: false,

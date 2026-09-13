@@ -10,12 +10,22 @@
 
 import { runC1 } from "@strata402/consuming-agent";
 import { buildYieldRiskRequestBody } from "@strata402/consuming-agent/yield-risk-request";
-import { GATEWAY_BASE_URL } from "./data";
+import { GATEWAY_BASE_URL, HCS_AUDIT_TOPIC_ID, readHcsAuditMessages } from "./data";
 
 export interface WebPaidRequestInput {
   accountId: string;
   riskTolerance: string;
   amountHbar: number | null;
+}
+
+/** Observable audit linkage returned with a paid response.
+ * `requestId` is the exact UUID embedded in the HCS audit message; it is never
+ * invented here and never differs between the API response and the HCS event. */
+export interface PaidAuditInfo {
+  requestId?: string;
+  topicId?: string;
+  sequenceNumber?: number;
+  status?: string;
 }
 
 export interface WebPaidResultOk {
@@ -36,6 +46,7 @@ export interface WebPaidResultOk {
   serviceUrl: string;
   mirrorBaseUrl: string;
   narrativePoints?: string[];
+  audit?: PaidAuditInfo;
 }
 
 export interface WebPaidResultError {
@@ -64,6 +75,26 @@ export function isC1Available(env: NodeJS.ProcessEnv = process.env): {
     return { enabled: false, reason: "payer private key is not configured on the server" };
   }
   return { enabled: true };
+}
+
+/**
+ * Extracts the HCS audit requestId from the gateway's paid response body.
+ * The gateway echoes the exact requestId it publishes in the HCS event as a
+ * top-level `requestId` field on successful (200) responses.
+ */
+export function auditInfoFromGateway(
+  body: unknown,
+  topicId: string,
+): PaidAuditInfo {
+  const requestId =
+    typeof body === "object" && body !== null && !Array.isArray(body)
+      ? (body as Record<string, unknown>).requestId
+      : undefined;
+  return {
+    requestId:
+      typeof requestId === "string" && requestId.trim() !== "" ? requestId : undefined,
+    topicId: topicId !== "" ? topicId : undefined,
+  };
 }
 
 /**
@@ -138,6 +169,24 @@ export async function runWebPaidRequest(
         ? report.settlement.transactionId
         : null;
 
+    // Audit linkage: requestId is echoed from the gateway's HCS event (same id,
+    // never a separate one). Sequence/topic-status are best-effort reads of the
+    // audit topic afterwards and degrade gracefully when the mirror is not yet
+    // consistent.
+    const audit: PaidAuditInfo = auditInfoFromGateway(
+      report.evidence?.body,
+      HCS_AUDIT_TOPIC_ID,
+    );
+    try {
+      const hcs = await readHcsAuditMessages(1);
+      if (hcs.ok && hcs.messages.length > 0) {
+        audit.sequenceNumber = hcs.messages[0]!.sequenceNumber;
+        audit.status = "online";
+      }
+    } catch {
+      // sequenceNumber/status remain temporarily unavailable
+    }
+
     let narrativePoints: string[] = [];
     try {
       const aiRes = await fetch("http://127.0.0.1:8000/v1/strategy/yield-risk", {
@@ -149,7 +198,7 @@ export async function runWebPaidRequest(
           amountHbar: input.amountHbar || 1,
         }),
         cache: "no-store",
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(25000),
       });
       if (aiRes.ok) {
         const aiData = (await aiRes.json()) as Record<string, unknown>;
@@ -184,6 +233,7 @@ export async function runWebPaidRequest(
       serviceUrl: report.serviceUrl,
       mirrorBaseUrl: report.mirrorBaseUrl,
       narrativePoints,
+      audit,
     };
   } catch (error) {
     const code =

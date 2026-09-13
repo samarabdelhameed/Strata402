@@ -48,3 +48,14 @@ docs/
 voice_agintect_ai/
 voice-agintect-ai/
 voice_agent_ai/
+
+# Video and demo script files — local only, never pushed to GitHub
+*.mp4
+*.mov
+*.avi
+*Demo Script*.md
+*Voice-over*.md
+*Voice*.md
+*runbook*.md
+.deploy/
+*.png
