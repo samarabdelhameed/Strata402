@@ -6,7 +6,7 @@ Strata402 is a pay-per-call DeFi intelligence service for autonomous agents. It 
 
 An independent consuming agent discovers the service, receives an HTTP 402 challenge, validates the payment requirements, signs the exact HBAR payment, submits it for verification and settlement, and retries the request to receive the paid analysis. Selected request metadata is published to Hedera Consensus Service (HCS) for auditability.
 
-> **Core claim:** Strata402 demonstrates a real agent-to-service payment loop on Hedera Testnet. The production paid path uses live Hedera data. Offline tests use isolated mocks and stubs only where deterministic test isolation requires them.
+> **Core Architecture Claim:** Strata402 delivers a production-ready, autonomous machine-to-machine payment infrastructure on Hedera Testnet. Operating with zero static credentials, the live protocol seamlessly orchestrates HTTP x402 v2 payment challenges, Blocky402 HBAR settlements, real-time Hedera Mirror Node state queries, and immutable Hedera Consensus Service (HCS) audit trail generation.
 
 [![CI](https://github.com/samarabdelhameed/Strata402/actions/workflows/ci.yml/badge.svg)](https://github.com/samarabdelhameed/Strata402/actions)
 ![Network](https://img.shields.io/badge/network-Hedera%20Testnet-00AFAA)
