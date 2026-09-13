@@ -18,6 +18,39 @@ export default function RootLayout({
   return (
     // suppressHydrationWarning: browser extensions inject attrs (e.g. bis_skin_checked) that mismatch SSR.
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                function isExtensionError(e, msgStr) {
+                  var s = String((e && e.stack) || e || "");
+                  var f = String((e && e.filename) || "");
+                  var msg = String(msgStr || (e && e.message) || e || "");
+                  return s.indexOf("chrome-extension://") !== -1 ||
+                         f.indexOf("chrome-extension://") !== -1 ||
+                         msg.indexOf("M_ID") !== -1 ||
+                         msg.indexOf("bis_skin_checked") !== -1;
+                }
+                window.addEventListener("error", function(e) {
+                  if (isExtensionError(e.error || e, e.message)) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    return true;
+                  }
+                }, true);
+                window.addEventListener("unhandledrejection", function(e) {
+                  if (isExtensionError(e.reason)) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    return true;
+                  }
+                }, true);
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
