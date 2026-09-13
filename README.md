@@ -1,10 +1,10 @@
 # Strata402
 
-## Autonomous DeFi Intelligence for Machine-to-Machine Payments on Hedera
+### Autonomous DeFi Intelligence for Machine-to-Machine Payments on Hedera
 
-Strata402 is a pay-per-call DeFi intelligence service for autonomous agents. It exposes a structured analysis endpoint on Hedera Testnet, protects it with **x402 v2**, and settles each request in HBAR through the hosted **Blocky402 Testnet facilitator**.
+## Overview
 
-An independent consuming agent discovers the service, receives an HTTP 402 challenge, validates the payment requirements, signs the exact HBAR payment, submits it for verification and settlement, and retries the request to receive the paid analysis. Selected request metadata is published to Hedera Consensus Service (HCS) for auditability.
+Strata402 is an HTTP-native, x402-gated metered API gateway and autonomous AI DeFi strategy intelligence service on Hedera Testnet. Built for machine-to-machine micropayments, Strata402 allows autonomous AI agents to discover paid intelligence endpoints, validate payment requirements, settle exact HBAR micropayments through the Blocky402 facilitator, and receive transparent, verifiable on-chain analysis backed by Hedera Mirror Node data and audited on Hedera Consensus Service (HCS).
 
 > **Core Architecture Claim:** Strata402 delivers a production-ready, autonomous machine-to-machine payment infrastructure on Hedera Testnet. Operating with zero static credentials, the live protocol seamlessly orchestrates HTTP x402 v2 payment challenges, Blocky402 HBAR settlements, real-time Hedera Mirror Node state queries, and immutable Hedera Consensus Service (HCS) audit trail generation.
 
@@ -18,11 +18,18 @@ An independent consuming agent discovers the service, receives an HTTP 402 chall
 
 > **End-to-End Hedera Verification Record:** Automated execution of the 9-stage verification runbook on Hedera Testnet, demonstrating x402 payment challenges, Blocky402 settlement, Mirror Node queries, and HCS audit logging. For the high-definition recording, see [`docs/assets/strata402-judge-verification-runbook.mp4`](docs/assets/strata402-judge-verification-runbook.mp4).
 
-## Why Strata402
+## The Problem & Solution
 
-Autonomous agents need useful services without API keys, subscription accounts, or manual approval for every request. Service providers need payment infrastructure that is native to HTTP and practical for small machine-to-machine transactions.
+### The Problem
+- **Human-Centric API Billing:** Traditional Web2 and Web3 APIs rely on credit card billing, static API keys, OAuth tokens, or long-term subscriptions that autonomous AI agents cannot manage programmatically.
+- **Micropayment Overhead & Friction:** On-chain payments for per-call services often suffer from high network gas fees, latency, or complex wallet popups unsuitable for automated agent execution.
+- **Opaque AI & Invented Data:** Many AI DeFi services fabricate risk scores, fake APYs, or invented yield metrics without verifiable on-chain facts or transparent auditability.
 
-Strata402 combines a paid intelligence service, an autonomous consuming agent, and an auditable Hedera trail. It separates verified observations from derived metrics and explicitly labels unavailable protocol data instead of fabricating APY, liquidity, or risk claims.
+### The Solution
+- **HTTP-Native x402 Micropayments:** Strata402 implements the [x402 v2](https://x402.org) protocol (`HTTP 402 Payment Required`), enabling machine-to-machine payments natively over standard HTTP headers.
+- **Hedera Testnet HBAR Settlement:** Payments of 0.01 HBAR (1,000,000 tinybars) are verified and settled seamlessly through the official **Blocky402 Hosted Testnet Facilitator** (`https://api.testnet.blocky402.com`).
+- **Verifiable Mirror Node Facts:** AI strategy analysis is strictly derived from real-time **Hedera Mirror Node** account state, separating observed facts from derived metrics and explicitly marking unavailable data as `unavailable`.
+- **Immutable HCS Audit Trail:** Every paid request publishes an audit log to Hedera Consensus Service (**HCS Topic `0.0.10483725`**), linking the API request ID to on-chain consensus timestamps for full observability.
 
 ## Hedera Track Alignment
 
