@@ -1,0 +1,9 @@
+node_modules
+.next
+.venv
+dist
+build
+.deploy
+contracts/node_modules
+apps/web/.next
+services/ai-engine/.venv

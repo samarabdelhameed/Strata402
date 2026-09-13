@@ -11,12 +11,14 @@ Strata402 is an HTTP-native, x402-gated metered API gateway and autonomous AI De
 [![CI](https://github.com/samarabdelhameed/Strata402/actions/workflows/ci.yml/badge.svg)](https://github.com/samarabdelhameed/Strata402/actions)
 ![Network](https://img.shields.io/badge/network-Hedera%20Testnet-00AFAA)
 ![Protocol](https://img.shields.io/badge/protocol-x402%20v2-4B5563)
+[![Vercel](https://img.shields.io/badge/Vercel-Live%20Production-000000?logo=vercel)](https://strata402-web-samarabdelhameeds-projects.vercel.app)
 
 ## Demo — Live Protocol & UI Verification on Hedera
 
 ![Strata402 Live Demo](media/strata402-demo.gif)
 
 > **Strata402 Live Protocol & Web UI Studio Demo:** Complete end-to-end walkthrough on Hedera Testnet demonstrating autonomous agent x402 micropayments, Blocky402 HBAR settlement, live Mirror Node queries, Orders tab intent publishing, and HCS audit logging.
+> - 🌐 **Live Web UI (Vercel Production):** [https://strata402-web-samarabdelhameeds-projects.vercel.app](https://strata402-web-samarabdelhameeds-projects.vercel.app)
 > - 🎙️ **Official Demo Video (Full UI & Voiceover - `voice_agintect_ai`):** [▶️ Play Video (`Hedera.mp4`)](./Hedera.mp4?raw=true) | [▶️ Direct Stream (`strata402-judge-verification-voiceover.mp4`)](./docs/assets/strata402-judge-verification-voiceover.mp4?raw=true)
 > - 📊 **Official Presentation Deck (Embedded Voiceover):** [📄 Download PPTX Deck (`Strata402 — Autonomous DeFi Intelligence on Hedera.pptx`)](./Strata402%20%E2%80%94%20Autonomous%20DeFi%20Intelligence%20on%20Hedera.pptx?raw=true) | [🔊 Full Voiceover Track](./voice_agintect_ai/presentation_slides_audio/full_presentation_voiceover.wav?raw=true)
 > - 📺 **HD Terminal Verification Video (Runbook):** [▶️ Play Video (`strata402-judge-verification-runbook.mp4`)](./docs/assets/strata402-judge-verification-runbook.mp4?raw=true)
