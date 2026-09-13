@@ -14,7 +14,7 @@ An independent consuming agent discovers the service, receives an HTTP 402 chall
 
 ## System Verification & Live Protocol Demo on Hedera
 
-![Strata402 Terminal Verification Runbook](docs/assets/strata402-judge-verification-runbook.gif)
+![Strata402 Terminal Verification Runbook](media/strata402-demo.gif)
 
 > **End-to-End Hedera Verification Record:** Automated execution of the 9-stage verification runbook on Hedera Testnet, demonstrating x402 payment challenges, Blocky402 settlement, Mirror Node queries, and HCS audit logging. For the high-definition recording, see [`docs/assets/strata402-judge-verification-runbook.mp4`](docs/assets/strata402-judge-verification-runbook.mp4).
 
