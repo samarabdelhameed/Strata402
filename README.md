@@ -17,8 +17,8 @@ Strata402 is an HTTP-native, x402-gated metered API gateway and autonomous AI De
 ![Strata402 Live Demo](media/strata402-demo.gif)
 
 > **Strata402 Live Protocol & Web UI Studio Demo:** Complete end-to-end walkthrough on Hedera Testnet demonstrating autonomous agent x402 micropayments, Blocky402 HBAR settlement, live Mirror Node queries, Orders tab intent publishing, and HCS audit logging.
-> - 🎙️ **Official Demo Video (Full UI & Voiceover - `voice_agintect_ai`):** [Play Video (`Hedera.mp4`)](https://raw.githubusercontent.com/samarabdelhameed/Strata402/main/Hedera.mp4) | [Play Direct Stream (`strata402-judge-verification-voiceover.mp4`)](https://raw.githubusercontent.com/samarabdelhameed/Strata402/main/docs/assets/strata402-judge-verification-voiceover.mp4)
-> - 📺 **HD Terminal Verification Video (Runbook):** [Play Video (`strata402-judge-verification-runbook.mp4`)](https://raw.githubusercontent.com/samarabdelhameed/Strata402/main/docs/assets/strata402-judge-verification-runbook.mp4)
+> - 🎙️ **Official Demo Video (Full UI & Voiceover - `voice_agintect_ai`):** [▶️ Play Video (`Hedera.mp4`)](./Hedera.mp4?raw=true) | [▶️ Direct Stream (`strata402-judge-verification-voiceover.mp4`)](./docs/assets/strata402-judge-verification-voiceover.mp4?raw=true)
+> - 📺 **HD Terminal Verification Video (Runbook):** [▶️ Play Video (`strata402-judge-verification-runbook.mp4`)](./docs/assets/strata402-judge-verification-runbook.mp4?raw=true)
 
 ## The Problem & Solution
 
